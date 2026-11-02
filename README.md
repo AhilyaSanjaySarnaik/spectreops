@@ -64,6 +64,30 @@ lab, not arbitrary-destination scanning with IP/port allowlisting. Legacy
 not socket-level destination pinning. This release should not be advertised as
 safe for arbitrary authorised remote engagements without additional containment.
 
+## Phase 2: observation history and explicit resolution
+
+Recorded findings now retain their first-seen evidence alongside a history of
+subsequent observations. Repeated reports of the same title and target reuse
+the finding ID, update `last_seen` and `seen_count`, and append new evidence
+and confidence/severity observations. Older SQLite databases are migrated
+without discarding previously saved findings.
+
+```sh
+spec findings -c YOUR_CONFIG.yaml
+spec finding-history 1 -c YOUR_CONFIG.yaml
+spec finding-status 1 resolved -c YOUR_CONFIG.yaml
+```
+
+Supported manual statuses: `open`, `resolved`, `accepted_risk`, and
+`false_positive`. A resolved issue becomes open again if the same title and
+target are positively observed later. **SpectreOps never automatically marks
+an issue resolved just because a partial scan did not report it.**
+
+This is observation history, not yet a complete coverage-aware comparison of
+named assessment runs. Severity and evidence from the first observation remain
+preserved on the primary finding; subsequent values remain visible in its
+observation history.
+
 ## Architecture
 - `core/` agent loop, tool registry, executor, SQLite memory, hash-chained audit log
 - `llm/` Ollama + any OpenAI-compatible backend (llama.cpp, vLLM, LM Studio)
