@@ -25,9 +25,11 @@ CREATE TABLE IF NOT EXISTS surfaces (
 
 
 # columns added after the first release; applied to existing DBs on open
-_MIGRATIONS = {"reproduction": "TEXT DEFAULT ''", "remediation": "TEXT DEFAULT ''"}
+_MIGRATIONS = {"reproduction": "TEXT DEFAULT ''", "remediation": "TEXT DEFAULT ''",
+               "last_seen": "REAL", "seen_count": "INTEGER DEFAULT 1"}
 _FINDING_KEYS = ["id", "ts", "title", "severity", "confidence", "target",
-                 "evidence", "tool", "status", "reproduction", "remediation"]
+                 "evidence", "tool", "status", "reproduction", "remediation",
+                 "last_seen", "seen_count"]
 
 
 class Memory:
@@ -39,6 +41,21 @@ class Memory:
         for col, decl in _MIGRATIONS.items():
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE findings ADD COLUMN {col} {decl}")
+        self.conn.execute(
+            "UPDATE findings SET last_seen=ts WHERE last_seen IS NULL"
+        )
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS finding_observations (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              finding_id INTEGER NOT NULL,
+              ts REAL NOT NULL,
+              severity TEXT NOT NULL,
+              confidence TEXT NOT NULL,
+              evidence TEXT NOT NULL,
+              tool TEXT NOT NULL,
+              FOREIGN KEY(finding_id) REFERENCES findings(id)
+            )
+        """)
         self.conn.commit()
 
     @staticmethod
@@ -65,15 +82,57 @@ class Memory:
                     target: str, evidence: dict, tool: str,
                     reproduction: str = "", remediation: str = "") -> int:
         existing = self.existing_finding_id(title, target)
+        now = time.time()
         if existing is not None:
+            with self.conn:
+                self.conn.execute(
+                    "UPDATE findings SET last_seen=?, seen_count=COALESCE(seen_count, 1)+1 "
+                    "WHERE id=?", (now, existing),
+                )
+                self.conn.execute(
+                    "INSERT INTO finding_observations "
+                    "(finding_id,ts,severity,confidence,evidence,tool) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (existing, now, severity, confidence,
+                     json.dumps(evidence, default=str), tool),
+                )
             return existing
         cur = self.conn.execute(
             "INSERT INTO findings (ts,title,severity,confidence,target,evidence,tool,"
-            "reproduction,remediation) VALUES (?,?,?,?,?,?,?,?,?)",
-            (time.time(), title, severity, confidence, target,
-             json.dumps(evidence, default=str), tool, reproduction, remediation))
-        self.conn.commit()
+            "reproduction,remediation,last_seen,seen_count) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (now, title, severity, confidence, target,
+             json.dumps(evidence, default=str), tool, reproduction, remediation,
+             now, 1))
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO finding_observations "
+                "(finding_id,ts,severity,confidence,evidence,tool) VALUES (?,?,?,?,?,?)",
+                (cur.lastrowid, now, severity, confidence,
+                 json.dumps(evidence, default=str), tool),
+            )
         return cur.lastrowid  # type: ignore[return-value]
+
+    def finding_history(self, finding_id: int) -> list[dict]:
+        """Every observation for one issue, without overwriting original evidence."""
+        rows = self.conn.execute(
+            "SELECT ts,severity,confidence,evidence,tool FROM finding_observations "
+            "WHERE finding_id=? ORDER BY id", (finding_id,),
+        ).fetchall()
+        return [
+            {"ts": ts, "severity": severity, "confidence": confidence,
+             "evidence": json.loads(evidence), "tool": tool}
+            for ts, severity, confidence, evidence, tool in rows
+        ]
+
+    def set_finding_status(self, finding_id: int, status: str) -> bool:
+        """Explicit status change; absence from an incomplete scan is not a fix."""
+        if status not in ("open", "resolved", "accepted_risk", "false_positive"):
+            raise ValueError("invalid finding status")
+        cur = self.conn.execute(
+            "UPDATE findings SET status=? WHERE id=?", (status, finding_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def findings(self, severity: str | None = None) -> list[dict]:
         q = f"SELECT {','.join(_FINDING_KEYS)} FROM findings"
