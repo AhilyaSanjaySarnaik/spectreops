@@ -5,11 +5,13 @@ import json
 import httpx
 import yaml
 
+from ...core.egress import check_http_url
 from ...core.rate_limit import current_limiter
 
 
 async def openapi_endpoints(args: dict) -> dict:
     url = args["url"]
+    check_http_url(url)
     async with httpx.AsyncClient(verify=True, trust_env=False, timeout=30,
                                  follow_redirects=False) as client:
         async with current_limiter().slot():
