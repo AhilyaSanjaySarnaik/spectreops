@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpectreOps · Assessment trends</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui,-apple-system,Segoe UI,sans-serif;background:#0e1420;color:#e9edf6}
+*{box-sizing:border-box}body{margin:0}header,main{max-width:1100px;margin:auto;padding:24px}header{border-bottom:1px solid #273345}
+h1{font-size:28px;letter-spacing:-.7px;margin:4px 0}h2{font-size:18px;margin:0 0 16px}
+p,.muted{color:#a6b6c9}small{color:#a6b6c9}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#8ae5cd}
+.panel{border:1px solid #29374a;background:#162132;border-radius:14px;padding:22px;margin:20px 0}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.stat{padding:15px;border:1px solid #35455a;border-radius:10px}
+.stat strong{display:block;font-size:28px;font-variant-numeric:tabular-nums}.stat span{font-size:12px;color:#a6b6c9}
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end}label{display:grid;gap:6px;font-size:12px;color:#a6b6c9;flex:1;min-width:190px}
+select,button{border:1px solid #44546a;border-radius:8px;padding:10px 12px;font:inherit;background:#0c1727;color:#e9edf6}
+button{background:#2c8574;color:white;cursor:pointer;border-color:#2c8574}button:hover{background:#216b5d}button:disabled{opacity:.5;cursor:default}
+.item{padding:13px 0;border-top:1px solid #29374a}.item strong{display:block}.item small{overflow-wrap:anywhere}
+.chart-row{display:grid;grid-template-columns:minmax(130px,220px) 1fr;gap:14px;align-items:center;margin:12px 0}
+.track{display:flex;height:22px;border-radius:6px;overflow:hidden;background:#243348}
+.seg{min-width:0}.new{background:#5aa9eb}.recurring{background:#e8b769}.resolved{background:#66c8a1}.unverified{background:#9b99bd}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:#bcc9da}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.status{padding:12px;background:#253147;border-radius:8px;color:#d2dded}
+@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.chart-row{grid-template-columns:1fr}header,main{padding:16px}}
+</style>
+</head>
+<body>
+<header><div class="eyebrow">SpectreOps · Local assessment evidence</div>
+<h1>Assessment trends</h1><p>Compare what changed between completed security assessments. An absent finding is not proof of a fix.</p></header>
+<main>
+<section class="panel"><h2>Compare two assessments</h2>
+<div class="controls"><label>Baseline<select id="baseline"></select></label>
+<label>Comparison<select id="comparison"></select></label>
+<button id="compare">Compare runs</button></div>
+<p id="status" class="status" role="status">Loading assessments…</p></section>
+<section id="results" hidden>
+<div class="stats" id="stats"></div><div class="panel"><h2>Finding details</h2><div id="details"></div></div>
+</section>
+<section class="panel"><h2>History across completed assessments</h2>
+<div class="legend">
+<span><i class="dot new"></i>New</span><span><i class="dot recurring"></i>Recurring</span>
+<span><i class="dot resolved"></i>Explicitly resolved</span><span><i class="dot unverified"></i>Not observed / unverified</span>
+</div><div id="trends"><p class="muted">Loading history…</p></div></section>
+<p class="muted">Read-only local dashboard · <a href="/assessments" style="color:#8ae5cd">Assessment API</a> · <a href="/findings" style="color:#8ae5cd">Findings</a></p>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const fields = [
+  ["new","New findings","new"],["recurring","Recurring findings","recurring"],
+  ["explicitly_resolved","Explicitly resolved","resolved"],
+  ["not_observed_unverified","Not observed (unverified)","unverified"]
+];
+function el(tag, cls, content) {
+  const node=document.createElement(tag);
+  if(cls)node.className=cls;
+  if(content!==undefined)node.textContent=String(content);
+  return node;
+}
+async function get(path) {
+  const response=await fetch(path,{headers:{"Accept":"application/json"}});
+  if(!response.ok){let message="HTTP "+response.status;try{const error=await response.json();message=error.detail||message;}catch{}throw new Error(message);}
+  return response.json();
+}
+function populate(select,runs) {
+  select.replaceChildren();
+  for(const run of runs){const option=el("option","",run.name);option.value=run.name;select.append(option);}
+}
+async function load(){
+  try {
+    const all=await get("/assessments");
+    const complete=all.filter(r=>r.state==="complete");
+    populate($("baseline"),complete);populate($("comparison"),complete);
+    $("compare").disabled=complete.length<2;
+    if(complete.length>=2){
+      $("baseline").value=complete[complete.length-2].name;
+      $("comparison").value=complete[complete.length-1].name;
+      await compare();
+    }else{$("status").textContent="Complete two named assessments to compare them.";}
+  }catch(error){$("status").textContent="Could not load assessments: "+error.message;}
+  try{renderTrends(await get("/assessments/trends"));}
+  catch(error){$("trends").replaceChildren(el("p","muted","Trend data unavailable: "+error.message));}
+}
+function renderDiff(diff){
+  $("results").hidden=false;$("stats").replaceChildren();$("details").replaceChildren();
+  for(const [key,title,cls] of fields){
+    const metric=el("div","stat");
+    metric.append(el("strong","",diff[key].length),el("span","",title));$("stats").append(metric);
+    const block=el("section","item");block.append(el("h3","",title+" ("+diff[key].length+")"));
+    if(diff[key].length===0)block.append(el("p","muted","No findings in this category."));
+    for(const finding of diff[key]){
+      const item=el("div","item");
+      item.append(el("strong","",finding.title),el("small","",
+        "#"+finding.id+" · "+finding.severity+" · "+finding.target+" · "+finding.confidence));
+      block.append(item);
+    }
+    $("details").append(block);
+  }
+}
+async function compare(){
+  const before=$("baseline").value,after=$("comparison").value;
+  if(before===after){$("status").textContent="Choose two different assessments.";return;}
+  $("status").textContent="Comparing completed runs…";
+  try{
+    const data=await get("/assessments/compare?baseline="+encodeURIComponent(before)+"&comparison="+encodeURIComponent(after));
+    renderDiff(data);
+    $("status").textContent="Comparing "+before+" → "+after+" · Absence alone never counts as resolved.";
+  }catch(error){$("results").hidden=true;$("status").textContent="Comparison unavailable: "+error.message;}
+}
+function renderTrends(data){
+  const box=$("trends");box.replaceChildren();
+  if(!data.length){box.append(el("p","muted","Complete at least two assessments to see trends."));return;}
+  for(const row of data){
+    const wrap=el("div","chart-row");
+    wrap.append(el("span","",row.baseline+" → "+row.comparison));
+    const track=el("div","track");
+    const total=fields.reduce((n,[key])=>n+row[key],0);
+    for(const [key,title,cls] of fields){
+      if(!row[key])continue;
+      const segment=el("div","seg "+cls);
+      segment.style.width=(row[key]/Math.max(1,total)*100)+"%";
+      segment.title=title+": "+row[key];
+      segment.setAttribute("aria-label",segment.title);
+      track.append(segment);
+    }
+    if(!total)track.append(el("span","muted","No observations"));
+    wrap.append(track);box.append(wrap);
+  }
+}
+$("compare").addEventListener("click",compare);
+load();
+</script>
+</body></html>
