@@ -48,7 +48,8 @@ class Executor:
                  approval: ApprovalGate | None = None, autonomy: str = "supervised",
                  redact_secrets: bool = True, limiter: RateLimiter | None = None,
                  plan=None, auth: AuthStore | None = None,
-                 allow_host_scanners: bool = False):
+                 allow_host_scanners: bool = False,
+                 secure_lab_only: bool = False):
         self.registry = registry
         self.validator = validator
         self.audit = audit
@@ -68,9 +69,18 @@ class Executor:
             self.profile.cap_concurrency(getattr(pol, "concurrency", 5)))
         self.auth = auth or AuthStore.empty()
         self.allow_host_scanners = allow_host_scanners
+        self.secure_lab_only = secure_lab_only
 
     # ------------------------------------------------------------------ checks
     def _check_scope(self, tool: Tool, args: dict) -> None:
+        if self.secure_lab_only:
+            if tool.unscoped or (tool.network and tool.name != "nmap_scan"):
+                raise ScopeViolation("secure lab only permits isolated nmap network tools")
+            if tool.name == "nmap_scan":
+                if args.get("target") not in ("127.0.0.1", "::1", "localhost"):
+                    raise ScopeViolation("secure lab target must be loopback")
+                if args.get("extra") or args.get("service_detection"):
+                    raise ScopeViolation("secure lab nmap accepts only target and ports")
         if not tool.network:
             if tool.host_subprocess and not self.allow_host_scanners:
                 raise ScopeViolation(
