@@ -46,6 +46,8 @@ class RuntimeConfig(BaseModel):
     redact_secrets: bool = True
     # Dangerous escape hatch: scanners have no network namespace containment yet.
     allow_host_scanners: bool = False
+    # When set, limit agent networking to nmap against an offline Docker lab.
+    secure_lab_container_id: str = ""
 
 
 class AuditConfig(BaseModel):

@@ -85,6 +85,34 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
 
     registry = ToolRegistry()
     register_all(registry)
+    secure_lab = bool(cfg.runtime.secure_lab_container_id)
+    if secure_lab:
+        from urllib.parse import urlparse
+
+        from ..safety.lab_network import nmap_lab
+
+        if yes or cfg.agent.autonomy == "authorized":
+            raise ValueError("secure lab requires supervised approval (no --yes)")
+        if cfg.runtime.allow_host_scanners or cfg.runtime.sandbox_network != "none":
+            raise ValueError("secure lab requires host scanners disabled and sandbox_network none")
+        if cfg.scope.mode != "active" or not cfg.runtime.offline:
+            raise ValueError("secure lab requires active mode and runtime.offline true")
+        if urlparse(cfg.llm.base_url).hostname not in ("127.0.0.1", "::1", "localhost"):
+            raise ValueError("secure lab LLM backend must be local loopback")
+        if not cfg.scope.targets or any(
+            t not in ("127.0.0.1", "localhost", "::1") for t in cfg.scope.targets
+        ):
+            raise ValueError("secure lab scope may only contain loopback targets")
+
+        async def isolated_nmap(args):
+            return await nmap_lab(
+                args["target"], cfg.runtime.secure_lab_container_id,
+                str(args.get("ports") or "80,443"),
+            )
+
+        scanner = registry.get("nmap_scan")
+        scanner.handler = isolated_nmap
+        scanner.host_subprocess = False
     registry.register(Tool(
         name=FINDING_TOOL["name"], description=FINDING_TOOL["description"],
         parameters=FINDING_TOOL["parameters"], handler=make_record_finding(memory),
@@ -110,7 +138,8 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
                         cfg.agent.max_tool_timeout, cfg.agent.max_retries,
                         approval=approval, autonomy=cfg.agent.autonomy,
                         redact_secrets=cfg.runtime.redact_secrets, plan=plan, auth=auth,
-                        allow_host_scanners=cfg.runtime.allow_host_scanners)
+                        allow_host_scanners=cfg.runtime.allow_host_scanners,
+                        secure_lab_only=secure_lab)
     agent = Agent(make_llm(cfg), registry, executor, cfg.agent.max_tool_rounds,
                   cfg.llm.model, plan=plan)
     return Runtime(cfg, policy, validator, audit, memory, registry, executor, agent,

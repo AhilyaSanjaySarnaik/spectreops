@@ -1,0 +1,22 @@
+# Secure Phase 1 AI-agent lab mode. Replace the placeholder with an actual
+# 64-character ID from: docker inspect --format '{{.Id}}' spectre-lab
+# Lab container MUST run with --network none and an HTTP service on 127.0.0.1.
+llm:
+  backend: ollama
+  base_url: http://127.0.0.1:11434
+
+agent:
+  autonomy: supervised
+
+scope:
+  mode: active
+  targets: ["127.0.0.1"]
+  exclusions: []
+  require_approval_for: [active, exploit, destructive]
+
+runtime:
+  sandbox: docker
+  sandbox_network: none
+  offline: true
+  allow_host_scanners: false
+  secure_lab_container_id: "REPLACE_WITH_64_CHARACTER_DOCKER_CONTAINER_ID"

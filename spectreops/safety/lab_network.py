@@ -9,7 +9,7 @@ import asyncio
 import json
 import re
 
-from .sandbox import SANDBOX_IMAGE
+LAB_SCANNER_IMAGE = "spectreops/lab-scanner:latest"
 
 _CONTAINER_ID = re.compile(r"^[0-9a-f]{12,64}$")
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
@@ -48,7 +48,7 @@ async def verify_offline_container(container_id: str) -> str:
 
 
 def lab_scanner_command(container_id: str, argv: list[str],
-                        image: str = SANDBOX_IMAGE) -> list[str]:
+                        image: str = LAB_SCANNER_IMAGE) -> list[str]:
     """Construct a scanner without bind mounts, privileges, or outbound networking."""
     if not _CONTAINER_ID.fullmatch(container_id):
         raise LabIsolationError("invalid lab container ID")
