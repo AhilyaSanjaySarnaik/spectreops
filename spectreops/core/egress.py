@@ -23,7 +23,7 @@ def reset_scope(token) -> None:
 def check_http_url(url: str) -> None:
     validator = _scope.get()
     if validator is None:
-        # Direct tool helpers stay available, while Executor-managed calls are checked.
+        # Direct utility calls remain possible; Executor installs the policy for agent calls.
         return
     validator.check_url(url)
     validator.check_live_dns(url)
