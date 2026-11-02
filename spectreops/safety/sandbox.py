@@ -64,12 +64,15 @@ class SandboxImageMissing(RuntimeError):
 class Sandbox:
     """Runs shell commands with decreasing levels of isolation.
 
-    Resolution order (config: auto): docker -> bwrap -> none.
-    'none' still enforces timeouts, output caps, and destructive-command guards.
+    Resolution order (config: auto): docker -> bwrap -> error.
+    Unsandboxed host execution requires explicitly choosing mode='none'.
+    'none' is not an isolation boundary; it only provides command tripwires.
     """
 
     def __init__(self, mode: str = "auto", timeout: int = 120, max_output: int = 100_000,
                  network: str = "host", image: str = SANDBOX_IMAGE):
+        if mode not in ("auto", "docker", "bwrap", "none"):
+            raise ValueError("sandbox mode must be auto, docker, bwrap, or none")
         if network not in ("host", "none"):
             raise ValueError("sandbox network must be 'host' or 'none'")
         self.mode = self._resolve(mode)
@@ -104,7 +107,10 @@ class Sandbox:
             return "docker"
         if shutil.which("bwrap"):
             return "bwrap"
-        return "none"
+        raise RuntimeError(
+            "no sandbox available: install Docker or bubblewrap, or explicitly "
+            "set runtime.sandbox to none for trusted local-only use"
+        )
 
     def _wrap(self, cmd: list[str], workdir: Path | None) -> tuple[list[str], Path | None]:
         if self.mode == "docker":
