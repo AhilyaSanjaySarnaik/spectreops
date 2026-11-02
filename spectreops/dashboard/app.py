@@ -6,6 +6,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
+from ..core.assessments import AssessmentError, Assessments
+
 from ..core.audit import AuditLog
 from ..core.memory import Memory
 
@@ -37,6 +39,53 @@ def surfaces(status: str | None = None):
     return _memory().surfaces(status)
 
 
+@app.get("/assessments")
+def assessments():
+    """List named assessment runs, including active/incomplete ones."""
+    memory = _memory()
+    try:
+        return Assessments(memory).list_runs()
+    finally:
+        memory.conn.close()
+
+
+@app.get("/assessments/compare")
+def assessment_comparison(baseline: str, comparison: str):
+    """Return full evidence-backed comparison for two completed runs."""
+    memory = _memory()
+    try:
+        try:
+            return Assessments(memory).compare(baseline, comparison)
+        except AssessmentError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        memory.conn.close()
+
+
+@app.get("/assessments/trends")
+def assessment_trends():
+    """Adjacent completed-run comparison counts; never infer fixes by absence."""
+    memory = _memory()
+    try:
+        tracker = Assessments(memory)
+        complete = [r for r in tracker.list_runs() if r["state"] == "complete"]
+        trends = []
+        for earlier, later in zip(complete, complete[1:]):
+            diff = tracker.compare(earlier["name"], later["name"])
+            trends.append({
+                "baseline": earlier["name"],
+                "comparison": later["name"],
+                "completed_at": later["finished_at"],
+                "new": len(diff["new"]),
+                "recurring": len(diff["recurring"]),
+                "explicitly_resolved": len(diff["explicitly_resolved"]),
+                "not_observed_unverified": len(diff["not_observed_unverified"]),
+            })
+        return trends
+    finally:
+        memory.conn.close()
+
+
 @app.get("/audit/verify")
 def audit_verify():
     path = DATA_DIR / "audit.jsonl"
@@ -47,9 +96,9 @@ def audit_verify():
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return ("<h1>SpectreOps</h1><p>Endpoints: <a href='/findings'>/findings</a>, "
-            "<a href='/events'>/events</a>, <a href='/surfaces'>/surfaces</a>, "
-            "<a href='/audit/verify'>/audit/verify</a></p>")
+    """Render the local-only, read-only assessment trends dashboard."""
+    return (Path(__file__).with_name("overview.html").read_text(encoding="utf-8"))
+
 
 
 def serve(data_dir: str = "~/.spectreops", port: int = 8765) -> None:
