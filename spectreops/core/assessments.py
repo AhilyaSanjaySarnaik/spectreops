@@ -176,7 +176,7 @@ def export_comparison(comparison: dict, output: Path) -> None:
         for item in comparison[key]:
             lines.append(
                 f"- Finding #{item['id']}: **{item['title']}** "
-                f"at \`{item['target']}\` ({item['severity']})"
+                f"at `{item['target']}` ({item['severity']})"
             )
         lines.append("")
     output.write_text("\n".join(lines), encoding="utf-8")
