@@ -89,8 +89,14 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
     if secure_lab:
         from ..safety.lab_network import nmap_lab
 
+        from urllib.parse import urlparse
+
         if cfg.runtime.allow_host_scanners or cfg.runtime.sandbox_network != "none":
             raise ValueError("secure lab requires host scanners disabled and sandbox_network none")
+        if cfg.scope.mode != "active" or not cfg.runtime.offline:
+            raise ValueError("secure lab requires active mode and runtime.offline true")
+        if urlparse(cfg.llm.base_url).hostname not in ("127.0.0.1", "::1", "localhost"):
+            raise ValueError("secure lab LLM backend must be local loopback")
         if not cfg.scope.targets or any(
             t not in ("127.0.0.1", "localhost", "::1") for t in cfg.scope.targets
         ):
