@@ -118,6 +118,28 @@ class ScopeValidator:
         if not host or not self.check_host(host):
             raise ScopeViolation(f"URL out of scope: {url}")
 
+    def check_live_dns(self, url: str) -> None:
+        """Recheck current DNS answers before dispatch (not socket-level pinning)."""
+        host = urlparse(url).hostname
+        if not host:
+            raise ScopeViolation("URL has no hostname")
+        try:
+            ipaddress.ip_address(host)
+            return
+        except ValueError:
+            pass
+        try:
+            answers = {entry[4][0] for entry in socket.getaddrinfo(host, None)}
+        except socket.gaierror as exc:
+            raise ScopeViolation(f"DNS resolution failed for {host}") from exc
+        if not answers:
+            raise ScopeViolation(f"DNS resolution returned no addresses for {host}")
+        for ip in answers:
+            if not self.check_host(ip):
+                raise ScopeViolation(
+                    f"DNS address {ip} for {host} is outside approved scope"
+                )
+
     # ---- policy level -----------------------------------------------------
     def check_action(self, danger: str) -> None:
         """Validate a tool's intrusiveness against the scope mode."""

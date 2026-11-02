@@ -70,7 +70,7 @@ class Sandbox:
     """
 
     def __init__(self, mode: str = "auto", timeout: int = 120, max_output: int = 100_000,
-                 network: str = "host", image: str = SANDBOX_IMAGE):
+                 network: str = "none", image: str = SANDBOX_IMAGE):
         if mode not in ("auto", "docker", "bwrap", "none"):
             raise ValueError("sandbox mode must be auto, docker, bwrap, or none")
         if network not in ("host", "none"):

@@ -37,3 +37,12 @@ def test_explicit_unsandboxed_mode_remains_possible(monkeypatch):
 def test_reject_unknown_sandbox_modes(mode):
     with pytest.raises(ValueError, match="sandbox mode"):
         sandbox.Sandbox(mode=mode)
+
+def test_shell_sandbox_network_is_disabled_by_default(monkeypatch):
+    from spectreops.core.config import RuntimeConfig
+
+    monkeypatch.setattr(sandbox.shutil, "which", lambda _: "/usr/bin/docker")
+    shell = sandbox.Sandbox()
+    assert shell.network == "none"
+    assert ["--network", "none"] == shell._wrap(["echo", "ok"], None)[0][3:5]
+    assert RuntimeConfig().sandbox_network == "none"
