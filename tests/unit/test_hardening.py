@@ -37,7 +37,7 @@ def _executor(tmp_path, mode="active", offline=True, approval=None, autonomy="su
         t.handler = _fake
     v = ScopeValidator(Policy(mode=mode, targets=list(targets), offline=offline))
     return Executor(reg, v, AuditLog(tmp_path / "a.jsonl"), approval=approval,
-                    autonomy=autonomy)
+                    autonomy=autonomy, allow_host_scanners=True)
 
 
 # ---- scope ---------------------------------------------------------------
