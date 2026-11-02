@@ -117,6 +117,25 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
                    plan, plan_path)
 
 
+@app.command("lab-nmap")
+def lab_nmap(container_id: str = typer.Argument(
+             ..., help="ID of a running Docker container with network=none"),
+             target: str = typer.Option("127.0.0.1", "--target",
+                                        help="offline container loopback only"),
+             ports: str = typer.Option("80,443", "--ports")):
+    """Run TCP nmap from an offline Docker namespace; no host scanner escape."""
+    from ..safety.lab_network import LabIsolationError, nmap_lab
+
+    try:
+        result = asyncio.run(nmap_lab(target, container_id, ports))
+    except LabIsolationError as exc:
+        console.print(f"[red]Lab scan denied: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    console.print_json(json.dumps(result))
+    if "error" in result:
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def chat(config: Path = ConfigOpt,
          plan: Path = typer.Option(None, "--plan", help="resume/save plan JSON")):
