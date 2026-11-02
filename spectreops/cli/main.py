@@ -299,6 +299,34 @@ def report(output: Path = typer.Argument(..., help="report.md | .json | .sarif |
     console.print(f"[green]wrote {len(items)} finding(s) to {output}[/green]")
 
 
+@app.command("finding-history")
+def finding_history(finding_id: int,
+                    config: Path = ConfigOpt):
+    """Show recorded observations of a finding across assessments."""
+    cfg = load_config(config)
+    memory = Memory(cfg.runtime.data_dir / "memory.db")
+    rows = memory.finding_history(finding_id)
+    console.print_json(json.dumps({"finding_id": finding_id, "observations": rows}))
+
+
+@app.command("finding-status")
+def finding_status(finding_id: int,
+                   status: str = typer.Argument(
+                       ..., help="open | resolved | accepted_risk | false_positive"),
+                   config: Path = ConfigOpt):
+    """Mark a finding explicitly; missing scan results never imply resolution."""
+    cfg = load_config(config)
+    memory = Memory(cfg.runtime.data_dir / "memory.db")
+    try:
+        updated = memory.set_finding_status(finding_id, status)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if not updated:
+        console.print("[red]finding not found[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]finding {finding_id}: {status}[/green]")
+
+
 @app.command()
 def verify_audit(config: Path = ConfigOpt):
     """Verify the tamper-evidence hash chain of the audit log."""
