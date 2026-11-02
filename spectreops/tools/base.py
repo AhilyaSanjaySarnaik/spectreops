@@ -39,7 +39,7 @@ async def http_request(method: str, url: str, *, identity: str | None = None,
     # Never let the HTTP client silently follow redirects: even a scoped URL
     # can redirect off-scope and leak authentication headers or request bodies.
     # Caller may inspect Location and explicitly authorize a second request.
-    async with httpx.AsyncClient(verify=False, timeout=30,
+    async with httpx.AsyncClient(verify=True, trust_env=False, timeout=30,
                                  follow_redirects=False) as client:
         async with current_limiter().slot():
             resp = await client.request(method, url, headers=headers, **kw)

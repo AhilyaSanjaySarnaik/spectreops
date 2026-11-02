@@ -18,7 +18,7 @@ async def dir_brute(args: dict) -> dict:
     limiter = current_limiter()      # engagement rate + concurrency ceiling
     headers, cookies, params = current_auth().apply(base, {}, args.get("identity"))
     hits: list[dict] = []
-    async with httpx.AsyncClient(verify=False, timeout=15, follow_redirects=False,
+    async with httpx.AsyncClient(verify=True, trust_env=False, timeout=15, follow_redirects=False,
                                  headers=headers, cookies=cookies,
                                  params=params or None) as client:
         async def probe(path: str) -> None:
