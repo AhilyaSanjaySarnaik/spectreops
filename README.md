@@ -118,6 +118,31 @@ proof of remediation**; an explicit `resolved` status change within the
 comparison window is required. Comparing overlapping or unfinished assessments
 is rejected. JSON includes evidence; Markdown offers a human-readable summary.
 
+## Phase 2: assessment trends dashboard
+
+The **read-only, localhost-only** dashboard now shows completed assessment
+comparisons and trends. Launch it with:
+
+```sh
+spec dashboard -c config.yaml
+```
+
+Open `http://127.0.0.1:8765/` to select two completed named assessments.
+The dashboard displays new, recurring, explicitly resolved, and not-observed
+(unverified) findings, plus a history of adjacent completed assessment pairs.
+The comparison page does not expose any actions for changing finding status.
+
+JSON endpoints include:
+
+- `GET /assessments`: all named runs and their states
+- `GET /assessments/compare?baseline=NAME&comparison=NAME`: evidence-backed diff
+- `GET /assessments/trends`: per-pair counts for successive completed runs
+
+Missing findings are **not treated as remediated** without an explicit
+resolution event; incomplete assessments are excluded from trend comparisons.
+The dashboard is bound to 127.0.0.1 by default and should not be exposed
+publicly without adding authentication and transport protections.
+
 ## Architecture
 - `core/` agent loop, tool registry, executor, SQLite memory, hash-chained audit log
 - `llm/` Ollama + any OpenAI-compatible backend (llama.cpp, vLLM, LM Studio)
