@@ -116,6 +116,42 @@ works through them one at a time with `surface_next` / `surface_done`, so covera
 is explicit — every endpoint is tested or deliberately skipped. `spec surfaces`
 lists the queue; the dashboard exposes `/surfaces`.
 
+### Offline Docker scanner lab (Phase 1 boundary)
+
+For isolated security testing, SpectreOps provides `spectreops lab-nmap`. This
+path shares the network namespace of an **already running**, unprivileged
+Docker container with `--network none`. The scanner itself has no host
+mounts, drops Linux capabilities, runs read-only, and cannot access public
+networks. The only accepted destinations in this mode are the target
+container's loopback addresses. This is deliberately **not** a general
+network-restricted scanner for external domains, nor a substitute for a
+destination allowlist firewall for real engagements.
+
+Build the tool image, start a *local* offline server using an image already
+available on your machine, then scan its loopback interface:
+
+```sh
+docker/tools/build.sh
+docker run -d --rm --network none --name spectre-lab \
+  python:3.12-alpine python -m http.server 8765 --bind 127.0.0.1
+docker inspect --format '{{.Id}}' spectre-lab
+# Replace <container-id> with the returned hex ID:
+spectreops lab-nmap <container-id> --ports 8765
+docker rm -f spectre-lab
+```
+
+The command rejects target containers that are not running, whose network
+mode is not `none`, or that have another Docker network attached. It refuses
+non-loopback scan targets. The restricted runner does not require enabling
+the unsafe `runtime.allow_host_scanners` setting.
+
+A Docker CI job uses a target and runner in the same disconnected network
+namespace to verify the local service is reachable and a TEST-NET address
+is unreachable. CI demonstrates **offline containment only**. This does
+not prove all scanner adapters or normal Python HTTP requests have
+connection-level destination controls. Do not enable host scanners for
+untrusted engagements.
+
 ### Phase 1 network-boundary validation
 
 The shell sandbox defaults to `runtime.sandbox_network: none`. Docker and
