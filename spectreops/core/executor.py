@@ -8,6 +8,7 @@ import httpx
 
 from ..core.audit import AuditLog
 from ..core.auth import AuthStore, reset_auth, use_auth
+from ..core.profile import get_profile, reset_profile, use_profile
 from ..core.rate_limit import RateLimiter, reset_limiter, use_limiter
 from ..core.tool_registry import Tool, ToolRegistry
 from ..safety.approval import ApprovalGate
@@ -58,8 +59,11 @@ class Executor:
         # When a Plan is attached, exploit/destructive tools only run in its exploit phase.
         self.plan = plan
         pol = validator.policy
-        self.limiter = limiter or RateLimiter(getattr(pol, "rate_limit", 10.0),
-                                              getattr(pol, "concurrency", 5))
+        self.profile = get_profile(getattr(pol, "profile", "normal"))
+        # the noise profile can lower (never raise) the policy's rate/concurrency
+        self.limiter = limiter or RateLimiter(
+            self.profile.cap_rate(getattr(pol, "rate_limit", 10.0)),
+            self.profile.cap_concurrency(getattr(pol, "concurrency", 5)))
         self.auth = auth or AuthStore.empty()
 
     # ------------------------------------------------------------------ checks
@@ -176,13 +180,14 @@ class Executor:
         last_err: BaseException | None = None
         for attempt in range(retries + 1):
             try:
-                tokens = ([use_limiter(self.limiter), use_auth(self.auth)]
-                          if tool.network else [])
+                tokens = ([use_limiter(self.limiter), use_auth(self.auth),
+                           use_profile(self.profile)] if tool.network else [])
                 try:
                     result = await asyncio.wait_for(tool.handler(args),
                                                     timeout=self.max_timeout)
                 finally:
                     if tokens:
+                        reset_profile(tokens[2])
                         reset_auth(tokens[1])
                         reset_limiter(tokens[0])
                 self.audit.record("tool_end", actor="executor", tool=name,

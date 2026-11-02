@@ -18,7 +18,11 @@ scope:
   mode: none                   # none | passive_only | active | full
   targets: []                  # e.g. ["http://127.0.0.1:8080"]
   exclusions: []
-  rate_limit: 10               # requests/sec ceiling
+  profile: normal              # stealth | normal | loud — noise/aggressiveness.
+                               # stealth caps rate at 2/s, 1 connection, and runs
+                               # nmap top-50 at -T2 with no version detection.
+                               # normal is quiet-by-default (top-100, no -sV).
+  rate_limit: 10               # requests/sec ceiling (profile may lower this)
   concurrency: 5
   require_approval_for: [exploit, destructive, auth_bypass]
 

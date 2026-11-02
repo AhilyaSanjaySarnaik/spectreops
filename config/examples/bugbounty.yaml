@@ -5,6 +5,7 @@ agent:
   autonomy: supervised
 scope:
   mode: passive_only
+  profile: stealth
   targets: ["example-program.com"]
   exclusions: ["support.example-program.com", "status.*"]
   rate_limit: 5

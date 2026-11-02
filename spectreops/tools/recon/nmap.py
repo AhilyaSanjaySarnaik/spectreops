@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import re
 
+from ...core.profile import current_profile
 from ...core.rate_limit import current_limiter
 from ..base import require_binary
 
@@ -50,13 +51,32 @@ def apply_rate_ceiling(extra: list[str], rate: float) -> list[str]:
     return extra + ["--max-rate", f"{rate:g}"]
 
 
+def default_extra(profile, service_detection: bool) -> list[str]:
+    """Quiet-by-default nmap flags, tuned by the active noise profile.
+
+    Unlike the old default ("-sV --open", version detection on 1000 ports), this
+    stays quiet: open ports only, the profile's timing, and version detection
+    only when the caller explicitly asks for it."""
+    extra = ["--open", profile.nmap_timing]
+    if service_detection or profile.service_detection:
+        extra.append("-sV")
+    return extra
+
+
 async def nmap_scan(args: dict) -> dict:
     target = args["target"]
     ports = args.get("ports")
     if ports and not PORTS_RE.match(str(ports)):
         raise ValueError(f"invalid port spec: {ports!r}")
-    extra = apply_rate_ceiling(parse_extra(args.get("extra") or "-sV --open"),
-                               current_limiter().rate)
+    profile = current_profile()
+    if args.get("extra"):
+        extra = parse_extra(args["extra"])
+    else:
+        extra = default_extra(profile, bool(args.get("service_detection")))
+    # if the caller pinned no ports and no breadth, limit to the profile's top-N
+    if not ports and "--top-ports" not in extra and "-p" not in extra:
+        extra += ["--top-ports", str(profile.nmap_top_ports)]
+    extra = apply_rate_ceiling(extra, current_limiter().rate)
     binary = require_binary("nmap")
     cmd = [binary, "-oX", "-", "-Pn"]
     if ports:
@@ -73,13 +93,17 @@ async def nmap_scan(args: dict) -> dict:
 
 TOOL = {
     "name": "nmap_scan",
-    "description": "Scan ONE in-scope host or small CIDR for open TCP ports and "
-                   "service versions using nmap. 'extra' accepts only: "
+    "description": "Scan ONE in-scope host or small CIDR for open TCP ports using "
+                   "nmap. Quiet by default (open ports only, top-N ports per the "
+                   "engagement noise profile, no version detection). Set "
+                   "'service_detection' for -sV. 'extra' (advanced) accepts only: "
                    + " ".join(sorted(ALLOWED_FLAGS | set(FLAGS_WITH_VALUE))),
     "parameters": {"type": "object",
                    "properties": {"target": {"type": "string"},
                                   "ports": {"type": "string",
                                             "description": "e.g. '22,80,443' or '1-1024'"},
+                                  "service_detection": {"type": "boolean",
+                                      "description": "enable -sV (noisier)"},
                                   "extra": {"type": "string"}},
                    "required": ["target"]},
 }

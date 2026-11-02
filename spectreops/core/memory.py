@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE TABLE IF NOT EXISTS hosts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, host TEXT UNIQUE, info TEXT
 );
+CREATE TABLE IF NOT EXISTS surfaces (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, url TEXT UNIQUE, method TEXT,
+  kind TEXT, source TEXT, status TEXT DEFAULT 'new', notes TEXT
+);
 """
 
 
@@ -70,6 +74,48 @@ class Memory:
             " ON CONFLICT(host) DO UPDATE SET info=excluded.info, ts=excluded.ts",
             (time.time(), host, json.dumps(info)))
         self.conn.commit()
+
+    # ---- attack surfaces (discovered endpoints worked through a queue) -------
+    def add_surface(self, url: str, method: str = "GET", kind: str = "endpoint",
+                    source: str = "", notes: str = "") -> bool:
+        """Queue a discovered endpoint. Returns False if it was already known."""
+        cur = self.conn.execute(
+            "INSERT OR IGNORE INTO surfaces (ts,url,method,kind,source,status,notes)"
+            " VALUES (?,?,?,?,?,'new',?)",
+            (time.time(), url, method.upper(), kind, source, notes))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def surfaces(self, status: str | None = None, limit: int = 500) -> list[dict]:
+        q = "SELECT id,ts,url,method,kind,source,status,notes FROM surfaces"
+        args: tuple = ()
+        if status:
+            q += " WHERE status=?"
+            args = (status,)
+        rows = self.conn.execute(q + " ORDER BY id LIMIT ?", (*args, limit)).fetchall()
+        keys = ["id", "ts", "url", "method", "kind", "source", "status", "notes"]
+        return [dict(zip(keys, r, strict=True)) for r in rows]
+
+    def next_surface(self) -> dict | None:
+        """Claim the oldest untested surface, marking it in-progress (atomic)."""
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT id,url,method,kind,source FROM surfaces WHERE status='new'"
+                " ORDER BY id LIMIT 1").fetchone()
+            if row is None:
+                return None
+            self.conn.execute("UPDATE surfaces SET status='in_progress' WHERE id=?",
+                              (row[0],))
+        return {"id": row[0], "url": row[1], "method": row[2], "kind": row[3],
+                "source": row[4]}
+
+    def set_surface_status(self, surface_id: int, status: str) -> bool:
+        if status not in ("new", "in_progress", "tested", "skipped"):
+            raise ValueError(f"bad surface status: {status}")
+        cur = self.conn.execute("UPDATE surfaces SET status=? WHERE id=?",
+                                (status, surface_id))
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def log_event(self, kind: str, payload: dict) -> None:
         self.conn.execute("INSERT INTO events (ts,kind,payload) VALUES (?,?,?)",

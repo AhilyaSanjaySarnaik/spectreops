@@ -30,6 +30,7 @@ from ..tools.builtin import shell_tool
 from ..tools.builtin.findings_tool import TOOL as FINDING_TOOL
 from ..tools.builtin.findings_tool import make_record_finding
 from ..tools.builtin.plan_tools import make_plan_tools
+from ..tools.builtin.surface_tools import make_surface_tools
 from ..tools.loader import register_all
 
 app = typer.Typer(help="SpectreOps — local-first AI red-team agent", no_args_is_help=True)
@@ -88,6 +89,11 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
         name=FINDING_TOOL["name"], description=FINDING_TOOL["description"],
         parameters=FINDING_TOOL["parameters"], handler=make_record_finding(memory),
         tags={"reporting"}, danger="safe", target_keys=(), network=False))
+    for spec, handler in make_surface_tools(memory):
+        registry.register(Tool(
+            name=spec["name"], description=spec["description"],
+            parameters=spec["parameters"], handler=handler,
+            tags={"surface"}, danger="safe", target_keys=(), network=False))
     shell_tool.configure(Sandbox(cfg.runtime.sandbox, timeout=cfg.agent.max_tool_timeout,
                                  network=cfg.runtime.sandbox_network))
 
@@ -148,9 +154,27 @@ def scope(config: Path = ConfigOpt):
     console.print_json(json.dumps({
         "mode": rt.policy.mode, "targets": rt.policy.targets,
         "exclusions": rt.policy.exclusions, "offline": rt.policy.offline,
-        "autonomy": rt.cfg.agent.autonomy,
+        "autonomy": rt.cfg.agent.autonomy, "profile": rt.policy.profile,
+        "effective_rate": rt.executor.limiter.rate,
+        "effective_concurrency": rt.executor.limiter.concurrency,
         "allowed_hosts": sorted(rt.validator._allowed),
     }))
+
+
+@app.command()
+def surfaces(config: Path = ConfigOpt,
+             status: str = typer.Option(None, "--status", "-s",
+                                        help="new | in_progress | tested | skipped")):
+    """List discovered attack surfaces (endpoints) and their queue status."""
+    rt = build(config)
+    rows = rt.memory.surfaces(status)
+    if not rows:
+        console.print("no surfaces recorded yet")
+        return
+    t = Table("id", "status", "method", "url", "source")
+    for s in rows:
+        t.add_row(str(s["id"]), s["status"], s["method"], s["url"], s["source"])
+    console.print(t)
 
 
 @app.command()

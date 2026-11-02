@@ -12,7 +12,12 @@
   ffuf), manual request/replay, vuln (nuclei, trivy), exploitation (sqlmap, locked down)
 - Authenticated & multi-identity testing: per-host credentials from env/secrets store,
   host-bound so tokens never cross hosts, `http_replay` across identities for BOLA/IDOR
-- CLI: chat / run / scope / auth / tools / findings / report / verify-audit / dashboard
+- Noise profile (stealth | normal | loud): quiet-by-default nmap (no -sV, top-N ports),
+  caps rate/concurrency; profile can only lower, never raise, policy limits
+- Attack-surface queue (memory `surfaces` + surface_add/next/done tools, `spec surfaces`,
+  dashboard /surfaces) — discovered endpoints worked through explicitly
+- Test suites split: unit, integration (agent loop), security (adversarial/abuse cases)
+- CLI: chat / run / scope / auth / tools / surfaces / findings / report / verify-audit / dashboard
 - Exporters: Markdown, JSON, SARIF 2.1.0, HTML; findings store request/response evidence
 - Engagement-wide rate limiting (per request) + nmap/nuclei rate flags
 - Planner wired into the agent: phase in system prompt, plan tools, persistence/resume,

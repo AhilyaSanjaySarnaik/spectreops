@@ -18,6 +18,7 @@ introspection and the HTTP request/replay tools are built in (no binary needed).
     docker compose -f docker/vulnlab/docker-compose.yml up -d   # Juice Shop + DVWA on 127.0.0.1
     spec scope  -c config/examples/local_lab.yaml               # check what is in scope
     spec tools  -c config/examples/local_lab.yaml               # which tools can run
+    spec surfaces -c config/examples/local_lab.yaml             # discovered-endpoint queue
     spec run "enumerate http://127.0.0.1:3000" -c config/examples/local_lab.yaml
     spec findings -c config/examples/local_lab.yaml
     spec report report.html -c config/examples/local_lab.yaml   # .md | .json | .sarif | .html
@@ -90,11 +91,30 @@ current phase is injected into its system prompt every round. Exploit/destructiv
 tools only run in the `exploit` phase; entering it needs operator approval and is
 skipped entirely unless scope mode is `full`. Plans are saved after every change.
 
+### Noise profile
+`scope.profile` tunes how loud/detectable the agent is, from one setting:
+
+- `stealth` — minimal footprint: request rate capped at 2/s, single connection,
+  nmap top-50 ports at `-T2` with no version detection.
+- `normal` (default) — quiet-by-default: nmap top-100 ports, no version detection
+  unless asked (`service_detection: true` or the `-sV` flag).
+- `loud` — lab/CTF speed: faster timing, version detection on.
+
+The profile can only *lower* `scope.rate_limit` / `scope.concurrency`, never raise
+them past what the policy allows. `spec scope` prints the effective rate/concurrency.
+(The old default ran `nmap -sV` across ~1000 ports on every scan — that is gone.)
+
 ### Rate limiting
 `scope.rate_limit` (requests/sec) and `scope.concurrency` are enforced per request
 for HTTP tools via an engagement-wide limiter, and passed to nmap (`--max-rate`)
 and nuclei (`-rl`, `-c`). nuclei also runs with `-ni` (no out-of-band interactsh
 callbacks to third-party servers) and only accepts local template paths.
+
+### Attack-surface queue
+Discovery tools find endpoints; the agent records them with `surface_add` and
+works through them one at a time with `surface_next` / `surface_done`, so coverage
+is explicit — every endpoint is tested or deliberately skipped. `spec surfaces`
+lists the queue; the dashboard exposes `/surfaces`.
 
 ### Sandbox
 `run_shell` runs in docker (preferred), bwrap, or — last resort — directly with a

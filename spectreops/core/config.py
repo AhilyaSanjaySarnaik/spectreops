@@ -30,6 +30,7 @@ class ScopeConfig(BaseModel):
     mode: Literal["none", "passive_only", "active", "full"] = "none"
     targets: list[str] = Field(default_factory=list)
     exclusions: list[str] = Field(default_factory=list)
+    profile: Literal["stealth", "normal", "loud"] = "normal"  # noise/aggressiveness
     rate_limit: float = 10.0
     concurrency: int = 5
     require_approval_for: list[str] = Field(

@@ -32,6 +32,11 @@ def events(limit: int = 50):
     return _memory().events(min(max(limit, 1), 1000))
 
 
+@app.get("/surfaces")
+def surfaces(status: str | None = None):
+    return _memory().surfaces(status)
+
+
 @app.get("/audit/verify")
 def audit_verify():
     path = DATA_DIR / "audit.jsonl"
@@ -43,8 +48,8 @@ def audit_verify():
 @app.get("/", response_class=HTMLResponse)
 def index():
     return ("<h1>SpectreOps</h1><p>Endpoints: <a href='/findings'>/findings</a>, "
-            "<a href='/events'>/events</a>, <a href='/audit/verify'>/audit/verify</a>"
-            "</p>")
+            "<a href='/events'>/events</a>, <a href='/surfaces'>/surfaces</a>, "
+            "<a href='/audit/verify'>/audit/verify</a></p>")
 
 
 def serve(data_dir: str = "~/.spectreops", port: int = 8765) -> None:
