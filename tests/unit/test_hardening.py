@@ -85,7 +85,8 @@ async def test_multi_target_strings_rejected(tmp_path):
 
 @pytest.mark.asyncio
 async def test_cidr_target_fully_in_scope_allowed(tmp_path):
-    ex = _executor(tmp_path, targets=("10.1.1.0/30",))
+    ex = _executor(tmp_path, targets=("10.1.1.0/30",),
+                   approval=ApprovalGate(always_yes=True))
     assert await ex.run("nmap_scan", {"target": "10.1.1.0/30"}) == {"ran": True}
     assert "scope violation" in (await ex.run("nmap_scan",
                                               {"target": "10.1.1.0/29"}))["error"]
@@ -94,7 +95,8 @@ async def test_cidr_target_fully_in_scope_allowed(tmp_path):
 @pytest.mark.asyncio
 async def test_local_tool_not_treated_as_url(tmp_path):
     # bug: trivy's filesystem path was validated as http://<path> and always blocked
-    ex = _executor(tmp_path, mode="passive_only")
+    ex = _executor(tmp_path, mode="passive_only",
+                   approval=ApprovalGate(always_yes=True))
     assert await ex.run("trivy_scan", {"target": "."}) == {"ran": True}
 
 
