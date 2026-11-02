@@ -1,0 +1,33 @@
+# SpectreOps default configuration
+llm:
+  backend: ollama              # ollama | openai_compat
+  base_url: http://127.0.0.1:11434
+  model: qwen2.5-coder:14b     # pick per hardware: 7b ≈ 8GB RAM, 14b ≈ 12GB, 32b ≈ 24GB+
+  small_model: qwen2.5:7b      # cheap tasks: summarization, dedup, triage
+  temperature: 0.2
+  max_context_tokens: 32768
+  request_timeout: 300
+
+agent:
+  autonomy: supervised         # advisory | supervised | authorized
+  max_tool_rounds: 40
+  max_tool_timeout: 600        # seconds per tool execution
+  max_retries: 2
+
+scope:
+  mode: none                   # none | passive_only | active | full
+  targets: []                  # e.g. ["http://127.0.0.1:8080"]
+  exclusions: []
+  rate_limit: 10               # requests/sec ceiling
+  concurrency: 5
+  require_approval_for: [exploit, destructive, auth_bypass]
+
+runtime:
+  data_dir: ~/.spectreops      # engagements, memory DBs, evidence, logs
+  sandbox: auto                # auto | docker | bwrap | none
+  offline: true                # refuse any non-target egress when true
+  redact_secrets: true
+
+audit:
+  enabled: true
+  hash_chain: true             # each JSONL record hashes the previous one
