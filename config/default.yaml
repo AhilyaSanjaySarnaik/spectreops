@@ -32,6 +32,7 @@ runtime:
   sandbox_network: host        # host (reach lab targets) | none (fully isolated)
   offline: true                # refuse any non-target egress when true
   redact_secrets: true
+  allow_host_scanners: false  # DANGEROUS: explicit opt-in to unisolated scanner subprocesses
 
 audit:
   enabled: true
