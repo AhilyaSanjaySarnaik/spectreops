@@ -27,6 +27,43 @@ introspection and the HTTP request/replay tools are built in (no binary needed).
     spec chat -c config/examples/local_lab.yaml                 # interactive
     spec dashboard -c config/examples/local_lab.yaml            # http://127.0.0.1:8765
 
+## Phase 1: supported secure offline agent mode
+
+**Verified by GitHub Actions:** the secure offline mode limits the agent's
+network tools to approved Nmap scans of loopback services in a Docker container
+created with `--network none`. The scanner uses an isolated, read-only container
+without host mounts and with reduced privileges. Every scan needs operator
+approval. Other network tools and the unisolated host-scanner path are refused
+in this mode.
+
+The GitHub Actions workflow runs unit/security tests on Python 3.11, 3.12 and
+3.13 and a real Docker integration test. The Docker job launches an offline
+target, runs **actual Nmap** against its loopback server, and verifies an
+external TEST-NET connection fails. You do **not** need Docker Desktop on
+your laptop to view or use these GitHub CI results.
+
+To run the secure agent yourself on a Linux Docker host:
+
+```sh
+docker build -t spectreops/lab-scanner:latest docker/lab-scanner
+docker pull python:3.12-alpine
+docker run -d --rm --network none --cap-drop ALL --name spectre-lab \
+  python:3.12-alpine python -m http.server 8765 --bind 127.0.0.1
+docker inspect --format '{{.Id}}' spectre-lab
+```
+
+Copy `config/examples/secure_offline_agent.yaml` to a local config, replace
+`REPLACE_WITH_64_CHARACTER_DOCKER_CONTAINER_ID` with the returned container
+ID and run `spec run "check port 8765 on 127.0.0.1" -c YOUR_CONFIG.yaml`
+without `--yes`. An accessible local Ollama backend is required for agent
+execution. Clean up with `docker rm -f spectre-lab`.
+
+**Security guarantee is deliberately narrow:** this is an *offline loopback*
+lab, not arbitrary-destination scanning with IP/port allowlisting. Legacy
+`allow_host_scanners: true` is outside this guarantee. HTTP DNS preflight is
+not socket-level destination pinning. This release should not be advertised as
+safe for arbitrary authorised remote engagements without additional containment.
+
 ## Architecture
 - `core/` agent loop, tool registry, executor, SQLite memory, hash-chained audit log
 - `llm/` Ollama + any OpenAI-compatible backend (llama.cpp, vLLM, LM Studio)
@@ -127,16 +164,16 @@ container's loopback addresses. This is deliberately **not** a general
 network-restricted scanner for external domains, nor a substitute for a
 destination allowlist firewall for real engagements.
 
-Build the tool image, start a *local* offline server using an image already
-available on your machine, then scan its loopback interface:
+Build the dedicated scanner image, start a *local* offline server, then scan
+its loopback interface:
 
 ```sh
-docker/tools/build.sh
+docker build -t spectreops/lab-scanner:latest docker/lab-scanner
 docker run -d --rm --network none --name spectre-lab \
   python:3.12-alpine python -m http.server 8765 --bind 127.0.0.1
 docker inspect --format '{{.Id}}' spectre-lab
 # Replace <container-id> with the returned hex ID:
-spectreops lab-nmap <container-id> --ports 8765
+spec lab-nmap <container-id> --ports 8765
 docker rm -f spectre-lab
 ```
 
