@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpectreOps — Cybersecurity AI</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui,sans-serif;background:#0a0e14;color:#e3e9f3}
+*{box-sizing:border-box}body{margin:0}.app{display:grid;grid-template-columns:260px minmax(0,1fr);height:100vh}
+aside{background:#101722;border-right:1px solid #253142;padding:18px;display:flex;flex-direction:column;gap:18px}
+main{display:flex;flex-direction:column;min-width:0;height:100vh}
+.brand{font-size:18px;font-weight:750;letter-spacing:-.6px}.brand span{color:#62cba8}
+.muted{color:#90a1b5;font-size:13px}.nav{display:flex;flex-direction:column;gap:5px;overflow-y:auto;flex:1}
+.nav button{background:none;border:0;text-align:left;padding:10px 12px;border-radius:8px;color:#c3cddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;cursor:pointer}
+.nav button.active,.nav button:hover{background:#223246;color:#fff}
+button.new{border:1px solid #3c5b63;background:#1c383c;color:#b6f6df;border-radius:9px;padding:12px;font:inherit;cursor:pointer;text-align:left}
+.top{padding:18px 26px;border-bottom:1px solid #1e2b3b;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.top strong{font-size:15px}.top a{color:#a8c8e2;text-decoration:none;font-size:13px}
+.thread{flex:1;overflow:auto;padding:32px max(18px,calc((100% - 780px)/2));display:flex;flex-direction:column;gap:24px}
+.welcome{margin:auto 0;text-align:center}.welcome h1{font-size:30px;margin-bottom:8px;letter-spacing:-1px}
+.welcome p{color:#9bacc0}.topics{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:20px}
+.topics button{background:#182536;border:1px solid #314157;border-radius:12px;color:#ced9e7;padding:12px;cursor:pointer}
+.message{display:flex;flex-direction:column;gap:6px;max-width:100%;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.message.user{align-self:flex-end;border-radius:16px;background:#223248;padding:14px 18px;max-width:85%}
+.message.assistant{align-self:stretch}.message b{color:#63d0ad;font-size:12px;letter-spacing:1px;text-transform:uppercase}
+.composer{width:min(860px,calc(100% - 36px));margin:0 auto 20px;border:1px solid #34465d;background:#152132;border-radius:16px;padding:12px}
+.composer textarea{width:100%;min-height:55px;max-height:180px;resize:vertical;background:none;border:0;color:#f5f6fb;font:inherit;outline:none;line-height:1.5}
+.bottom{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bottom span{color:#91a2b6;font-size:12px}.send{border:0;border-radius:10px;background:#53bea1;color:#0a161a;padding:9px 18px;font-weight:750;cursor:pointer}
+.send:disabled{opacity:.55;cursor:default}
+#error{color:#f1a8a8;font-size:13px;min-height:18px}
+footer{padding:0 20px 10px;text-align:center;color:#788da5;font-size:11px}
+@media(max-width:700px){.app{grid-template-columns:1fr}aside{display:none}.top{padding:12px 16px}.thread{padding:24px 16px}.welcome h1{font-size:24px}}
+</style></head>
+<body><div class="app"><aside><div class="brand">◈ Spectre<span>Ops</span></div>
+<button class="new" id="new-chat">＋ New conversation</button><span class="muted">Conversations</span>
+<nav id="sessions" class="nav" aria-label="Conversations"></nav>
+<a class="muted" href="/trends">Assessment trends ↗</a></aside>
+<main><div class="top"><strong>Cybersecurity Research Chat</strong>
+<a href="/trends">Assessment dashboard</a></div>
+<section id="thread" class="thread" aria-live="polite">
+<div class="welcome" id="welcome"><h1>Think like an attacker.<br>Build like a defender.</h1>
+<p>Ask anything about cybersecurity, bug bounty methodology, CVEs, cloud or code.</p>
+<div class="topics"><button data-prompt="Explain IDOR and BOLA with an API lab example">IDOR &amp; BOLA</button>
+<button data-prompt="Teach me a structured bug bounty methodology">Bug bounty roadmap</button>
+<button data-prompt="Explain SSRF root causes, testing in a local lab, and fixes">SSRF research</button>
+<button data-prompt="Help me learn Active Directory attack paths and defenses">Active Directory</button></div></div>
+</section>
+<div class="composer"><textarea id="prompt" maxlength="12000" placeholder="Ask about a vulnerability, tool, CVE or bug bounty technique…" aria-label="Message"></textarea>
+<div class="bottom"><span>Chat-only · no scans or shell commands executed</span><button id="send" class="send">Send ↗</button></div><div id="error" role="alert"></div>
+</div><footer>Answers may contain mistakes. Validate technical claims and test only authorised systems.</footer>
+</main></div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);let active=null,busy=false;
+function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el}
+async function api(path,body){const r=await fetch(path,{method:body===undefined?"GET":"POST",
+headers:{"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});
+if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||"Request failed ("+r.status+")")}
+return r.json()}
+function bubble(role,content){const e=node("div","message "+role);if(role==="assistant")e.append(node("b","","SpectreOps"));e.append(node("div","",content));
+$("thread").append(e);$("thread").scrollTop=$("thread").scrollHeight;return e}
+function clear(){ $("thread").replaceChildren(); $("error").textContent=""}
+async function sessions(){const rows=await api("/api/chats");$("sessions").replaceChildren();
+for(const row of rows){const b=node("button",row.id===active?"active":"",row.title);b.onclick=()=>openChat(row.id);$("sessions").append(b)}}
+async function newChat(){const item=await api("/api/chats",{});active=item.id;clear();await sessions();$("prompt").focus()}
+async function openChat(id){if(busy)return;active=id;clear();const item=await api("/api/chats/"+encodeURIComponent(id));
+for(const m of item.messages)bubble(m.role,m.content);await sessions()}
+async function send(){const text=$("prompt").value.trim();if(!text||busy)return;busy=true;$("send").disabled=true;$("error").textContent="";
+try{if(!active)await newChat();$("prompt").value="";bubble("user",text);const answer=await api("/api/chat",{session_id:active,message:text});bubble("assistant",answer.reply);await sessions()}
+catch(e){$("error").textContent=e.message}
+finally{busy=false;$("send").disabled=false;$("prompt").focus()}}
+$("new-chat").onclick=()=>{if(!busy)newChat().catch(e=>$("error").textContent=e.message)};
+$("send").onclick=send;$("prompt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});
+for(const b of document.querySelectorAll("[data-prompt]"))b.onclick=()=>{$("prompt").value=b.dataset.prompt;send()};
+sessions().catch(e=>$("error").textContent=e.message);
+</script></body></html>
