@@ -5,6 +5,7 @@ import asyncio
 import httpx
 
 from ...core.auth import current_auth
+from ...core.egress import check_http_url
 from ...core.rate_limit import current_limiter
 
 DEFAULT_WORDS = ["admin", "login", "dashboard", "api", "backup", ".git",
@@ -13,6 +14,7 @@ DEFAULT_WORDS = ["admin", "login", "dashboard", "api", "backup", ".git",
 
 async def dir_brute(args: dict) -> dict:
     base = args["base_url"].rstrip("/")
+    check_http_url(base)
     words: list[str] = args.get("words") or DEFAULT_WORDS
     codes = set(args.get("interesting_codes", [200, 301, 302, 401, 403]))
     limiter = current_limiter()      # engagement rate + concurrency ceiling
