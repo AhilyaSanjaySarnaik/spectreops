@@ -7,7 +7,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
 from ..core.assessments import AssessmentError, Assessments
-
 from ..core.audit import AuditLog
 from ..core.memory import Memory
 
@@ -70,7 +69,7 @@ def assessment_trends():
         tracker = Assessments(memory)
         complete = [r for r in tracker.list_runs() if r["state"] == "complete"]
         trends = []
-        for earlier, later in zip(complete, complete[1:]):
+        for earlier, later in zip(complete, complete[1:], strict=False):
             diff = tracker.compare(earlier["name"], later["name"])
             trends.append({
                 "baseline": earlier["name"],
