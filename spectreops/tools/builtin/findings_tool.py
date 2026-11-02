@@ -26,13 +26,17 @@ def make_record_finding(memory: Memory) -> Callable[[dict], Awaitable[dict]]:
         if conf == "verified" and not evidence:
             return {"error": "a 'verified' finding needs tool evidence; "
                              "use 'likely' or 'possible' otherwise"}
+        duplicate_id = memory.existing_finding_id(
+            str(args["title"])[:200], str(args.get("target", "")),
+        )
         fid = memory.add_finding(
             title=str(args["title"])[:200], severity=sev, confidence=conf,
             target=str(args.get("target", "")), evidence=evidence,
             tool=str(args.get("tool", "")),
             reproduction=str(args.get("reproduction", "")),
             remediation=str(args.get("remediation", "")))
-        return {"recorded": True, "id": fid}
+        return {"recorded": duplicate_id is None, "id": fid,
+                "duplicate": duplicate_id is not None}
 
     return record_finding
 
