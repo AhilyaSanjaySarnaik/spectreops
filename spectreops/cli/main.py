@@ -299,6 +299,59 @@ def report(output: Path = typer.Argument(..., help="report.md | .json | .sarif |
     console.print(f"[green]wrote {len(items)} finding(s) to {output}[/green]")
 
 
+@app.command("assessment-start")
+def assessment_start(name: str, config: Path = ConfigOpt):
+    """Begin a named assessment; record_finding events attach until completion."""
+    from ..core.assessments import AssessmentError, Assessments
+    cfg = load_config(config)
+    tracker = Assessments(Memory(cfg.runtime.data_dir / "memory.db"))
+    try:
+        assessment_id = tracker.start(name)
+    except AssessmentError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    console.print(f"[green]assessment started: {name} (#{assessment_id})[/green]")
+
+
+@app.command("assessment-complete")
+def assessment_complete(name: str, config: Path = ConfigOpt):
+    """Complete the named assessment, freezing its observation membership."""
+    from ..core.assessments import AssessmentError, Assessments
+    cfg = load_config(config)
+    tracker = Assessments(Memory(cfg.runtime.data_dir / "memory.db"))
+    try:
+        tracker.complete(name)
+    except AssessmentError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    console.print(f"[green]assessment completed: {name}[/green]")
+
+
+@app.command("assessment-list")
+def assessment_list(config: Path = ConfigOpt):
+    """List saved named assessment runs and their completion states."""
+    from ..core.assessments import Assessments
+    cfg = load_config(config)
+    tracker = Assessments(Memory(cfg.runtime.data_dir / "memory.db"))
+    console.print_json(json.dumps(tracker.list_runs()))
+
+
+@app.command("assessment-compare")
+def assessment_compare(baseline: str, comparison: str,
+                       output: Path = typer.Option(
+                           None, "--output", "-o", help="optional .json or .md export"),
+                       config: Path = ConfigOpt):
+    """Compare two complete runs; absent findings remain unverified."""
+    from ..core.assessments import AssessmentError, Assessments, export_comparison
+    cfg = load_config(config)
+    tracker = Assessments(Memory(cfg.runtime.data_dir / "memory.db"))
+    try:
+        result = tracker.compare(baseline, comparison)
+        if output is not None:
+            export_comparison(result, output)
+    except AssessmentError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    console.print_json(json.dumps(result))
+
+
 @app.command("finding-history")
 def finding_history(finding_id: int,
                     config: Path = ConfigOpt):
