@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
@@ -35,10 +36,17 @@ async def http_request(method: str, url: str, *, identity: str | None = None,
         kw["cookies"] = {**kw.get("cookies", {}), **cookies}
     if params:
         kw["params"] = {**kw.get("params", {}), **params}
+    # Never let the HTTP client silently follow redirects: even a scoped URL
+    # can redirect off-scope and leak authentication headers or request bodies.
+    # Caller may inspect Location and explicitly authorize a second request.
     async with httpx.AsyncClient(verify=False, timeout=30,
-                                 follow_redirects=follow_redirects) as client:
+                                 follow_redirects=False) as client:
         async with current_limiter().slot():
             resp = await client.request(method, url, headers=headers, **kw)
+        if follow_redirects and resp.is_redirect and resp.headers.get("location"):
+            return {"error": "redirect not followed: explicit scope validation required",
+                    "status": resp.status_code, "url": str(resp.url),
+                    "location": urljoin(str(resp.url), resp.headers["location"])}
         out = {"status": resp.status_code,
                "url": str(resp.url),
                "headers": dict(resp.headers),
