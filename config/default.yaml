@@ -33,6 +33,7 @@ runtime:
   offline: true                # refuse any non-target egress when true
   redact_secrets: true
   allow_host_scanners: false  # DANGEROUS: explicit opt-in to unisolated scanner subprocesses
+  secure_lab_container_id: ""  # optional 64-char offline Docker target ID; only isolated nmap allowed
 
 audit:
   enabled: true
