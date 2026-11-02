@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
@@ -40,9 +41,32 @@ class Memory:
                 self.conn.execute(f"ALTER TABLE findings ADD COLUMN {col} {decl}")
         self.conn.commit()
 
+    @staticmethod
+    def finding_fingerprint(title: str, target: str) -> str:
+        """Stable identity for the same title and exact affected target."""
+        identity = json.dumps(
+            [title.strip().casefold(), target.strip()],
+            ensure_ascii=False, separators=(",", ":"),
+        )
+        return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+    def existing_finding_id(self, title: str, target: str) -> int | None:
+        """Return an existing issue ID, including rows from older databases."""
+        fingerprint = self.finding_fingerprint(title, target)
+        rows = self.conn.execute(
+            "SELECT id,title,target FROM findings ORDER BY id",
+        ).fetchall()
+        for row_id, previous_title, previous_target in rows:
+            if self.finding_fingerprint(previous_title or "", previous_target or "") == fingerprint:
+                return row_id
+        return None
+
     def add_finding(self, title: str, severity: str, confidence: str,
                     target: str, evidence: dict, tool: str,
                     reproduction: str = "", remediation: str = "") -> int:
+        existing = self.existing_finding_id(title, target)
+        if existing is not None:
+            return existing
         cur = self.conn.execute(
             "INSERT INTO findings (ts,title,severity,confidence,target,evidence,tool,"
             "reproduction,remediation) VALUES (?,?,?,?,?,?,?,?,?)",
