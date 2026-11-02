@@ -32,7 +32,8 @@ def _real_executor(tmp_path, mode="active", targets=("127.0.0.1",), offline=True
         t.handler = ok            # don't actually shell out; we test the guards
     pol = Policy(mode=mode, targets=list(targets), offline=offline, profile=profile)
     return reg, Executor(reg, ScopeValidator(pol), AuditLog(tmp_path / "a.jsonl"),
-                         plan=plan, approval=approval, auth=auth)
+                         plan=plan, approval=approval, auth=auth,
+                         allow_host_scanners=True)
 
 
 # ---- SSRF / metadata -------------------------------------------------------
