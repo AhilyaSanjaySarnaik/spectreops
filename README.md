@@ -27,6 +27,40 @@ introspection and the HTTP request/replay tools are built in (no binary needed).
     spec chat -c config/examples/local_lab.yaml                 # interactive
     spec dashboard -c config/examples/local_lab.yaml            # http://127.0.0.1:8765
 
+## Phase 1 supported secure mode: offline AI-agent lab
+
+SpectreOps has one deliberately constrained, CI-tested scanning mode: **offline
+Docker loopback lab**. It is not a general-purpose secure scanner for public
+or corporate infrastructure. Other scanner adapters remain disabled by default.
+
+1. Build the dedicated scanner image:
+   `docker build -t spectreops/lab-scanner:latest docker/lab-scanner`
+2. Start a local lab target:
+   `docker run -d --rm --network none --cap-drop ALL --name spectre-lab python:3.12-alpine python -m http.server 8765 --bind 127.0.0.1`
+3. Read its immutable Docker container ID:
+   `docker inspect --format '{{.Id}}' spectre-lab`
+4. Copy `config/examples/secure_offline_agent.yaml` to your own config file
+   and replace `REPLACE_WITH_64_CHARACTER_DOCKER_CONTAINER_ID` with that ID.
+   This profile requires `scope.mode: active`, only loopback scope targets,
+   `runtime.offline: true`, `sandbox_network: none`, host scanners off,
+   and a locally hosted LLM.
+5. Invoke `spec run "check port 8765 on 127.0.0.1 using nmap" -c YOUR_CONFIG.yaml`
+   **without** `--yes`; every isolated Nmap invocation requires approval.
+   Stop the target with `docker rm -f spectre-lab` afterward.
+
+The agent's network tools other than isolated `nmap_scan` are blocked in this
+mode. The isolated scanner is built as an unprivileged image and operates only
+on the loopback interface of a running Docker target configured with
+`--network none`. CI runs actual Nmap against an offline loopback server and
+tests that an external TEST-NET address cannot be reached.
+
+**Trust boundary:** Docker daemon administrators may reconfigure target
+containers, so do not treat this mode as a defence against a malicious Docker
+administrator. The general-purpose Python HTTP helpers still use DNS preflight
+rather than socket-level IP pinning and must not be considered a verified
+remote-assessment isolation boundary. The unsafe legacy host-scanner opt-in is
+outside this mode's security guarantee.
+
 ## Architecture
 - `core/` agent loop, tool registry, executor, SQLite memory, hash-chained audit log
 - `llm/` Ollama + any OpenAI-compatible backend (llama.cpp, vLLM, LM Studio)
