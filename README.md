@@ -116,6 +116,32 @@ works through them one at a time with `surface_next` / `surface_done`, so covera
 is explicit — every endpoint is tested or deliberately skipped. `spec surfaces`
 lists the queue; the dashboard exposes `/surfaces`.
 
+### Phase 1 network-boundary validation
+
+The shell sandbox defaults to `runtime.sandbox_network: none`. Docker and
+Bubblewrap should isolate network access for shell commands. **External scanners
+still execute on the host if explicitly opted in**; do not treat this as a
+universal network firewall.
+
+On a machine with Docker and the prebuilt SpectreOps tools image, verify
+the no-network boundary with this deliberately unreachable TEST-NET destination:
+
+```sh
+docker/tools/build.sh
+docker run --rm --network none --entrypoint python3 spectreops/tools:latest \
+  -c 'import socket; s=socket.socket(); s.settimeout(2); s.connect(("192.0.2.1", 9))'
+```
+
+**Expected:** the Python process exits non-zero with a network-unreachable error.
+If the connection unexpectedly succeeds, do not run security tools until the
+network configuration is inspected. Repeat under your actual deployment runtime.
+
+Use `ruff check . && pytest -q` to run unit regressions. DNS validation
+performed before HTTP dispatch detects some changed answers, but is not a
+socket-level control: DNS can still change before connection. Do not claim
+connection-level egress assurance until a network-isolated runtime and
+on-the-wire tests are available for every external tool.
+
 ### External scanner isolation status
 
 **Fail-closed default:** standalone scanners (nmap, nuclei, sqlmap,
