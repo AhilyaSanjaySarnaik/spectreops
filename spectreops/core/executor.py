@@ -8,6 +8,7 @@ import httpx
 
 from ..core.audit import AuditLog
 from ..core.auth import AuthStore, reset_auth, use_auth
+from ..core.egress import reset_scope, use_scope
 from ..core.profile import get_profile, reset_profile, use_profile
 from ..core.rate_limit import RateLimiter, reset_limiter, use_limiter
 from ..core.tool_registry import Tool, ToolRegistry
@@ -181,12 +182,14 @@ class Executor:
         for attempt in range(retries + 1):
             try:
                 tokens = ([use_limiter(self.limiter), use_auth(self.auth),
-                           use_profile(self.profile)] if tool.network else [])
+                           use_profile(self.profile), use_scope(self.validator)]
+                          if tool.network else [])
                 try:
                     result = await asyncio.wait_for(tool.handler(args),
                                                     timeout=self.max_timeout)
                 finally:
                     if tokens:
+                        reset_scope(tokens[3])
                         reset_profile(tokens[2])
                         reset_auth(tokens[1])
                         reset_limiter(tokens[0])
