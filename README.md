@@ -116,6 +116,26 @@ works through them one at a time with `surface_next` / `surface_done`, so covera
 is explicit — every endpoint is tested or deliberately skipped. `spec surfaces`
 lists the queue; the dashboard exposes `/surfaces`.
 
+### External scanner isolation status
+
+**Fail-closed default:** standalone scanners (nmap, nuclei, sqlmap,
+katana, arjun, ffuf, subfinder, gau and trivy) currently launch subprocesses
+directly on the host. They are **not** protected by the shell Sandbox or a
+network egress firewall. To prevent unintentional host execution,
+`runtime.allow_host_scanners` defaults to `false`.
+
+For an operator-controlled lab ONLY, you can explicitly opt in:
+
+```yaml
+runtime:
+  allow_host_scanners: true   # unsafe outside a tightly isolated lab
+```
+
+Each scanner invocation still requires operator approval, even with opt-in.
+This is a temporary operational guard, **not** real scanner isolation.
+Keep the option disabled until a dedicated network-restricted runtime is
+available. The Python HTTP tools can still run without this opt-in.
+
 ### Sandbox
 `run_shell` runs in docker (preferred), bwrap, or — last resort — directly with a
 destructive-command tripwire. Build the docker image once with
