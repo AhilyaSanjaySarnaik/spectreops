@@ -56,6 +56,15 @@ class Memory:
               FOREIGN KEY(finding_id) REFERENCES findings(id)
             )
         """)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS finding_status_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              finding_id INTEGER NOT NULL,
+              ts REAL NOT NULL,
+              status TEXT NOT NULL,
+              FOREIGN KEY(finding_id) REFERENCES findings(id)
+            )
+        """)
         # Backfill legacy findings once without losing original evidence.
         self.conn.execute("""
             INSERT INTO finding_observations
@@ -140,10 +149,15 @@ class Memory:
         """Explicit status change; absence from an incomplete scan is not a fix."""
         if status not in ("open", "resolved", "accepted_risk", "false_positive"):
             raise ValueError("invalid finding status")
-        cur = self.conn.execute(
-            "UPDATE findings SET status=? WHERE id=?", (status, finding_id),
-        )
-        self.conn.commit()
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE findings SET status=? WHERE id=?", (status, finding_id),
+            )
+            if cur.rowcount:
+                self.conn.execute(
+                    "INSERT INTO finding_status_events (finding_id,ts,status) "
+                    "VALUES (?,?,?)", (finding_id, time.time(), status),
+                )
         return cur.rowcount > 0
 
     def findings(self, severity: str | None = None) -> list[dict]:

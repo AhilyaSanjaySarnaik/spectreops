@@ -88,6 +88,36 @@ named assessment runs. Severity and evidence from the first observation remain
 preserved on the primary finding; subsequent values remain visible in its
 observation history.
 
+## Phase 2: compare named assessments
+
+Start an assessment before recording findings. When the run is complete, close
+it; only **completed**, sequential assessments can be compared. The
+`record_finding` tool automatically attributes observations to the currently
+active assessment in the configured local database. Existing findings remain
+available outside named runs but are not retroactively attributed.
+
+```sh
+spec assessment-start baseline -c config.yaml
+# Perform authorised local-lab assessment; record findings through the agent.
+spec assessment-complete baseline -c config.yaml
+
+spec assessment-start retest -c config.yaml
+# Re-test and record findings; explicitly mark confirmed remediations:
+spec finding-status 2 resolved -c config.yaml
+spec assessment-complete retest -c config.yaml
+
+spec assessment-list -c config.yaml
+spec assessment-compare baseline retest -c config.yaml --output comparison.json
+spec assessment-compare baseline retest -c config.yaml --output comparison.md
+```
+
+The diff preserves evidence for the final observation of a finding in each
+assessment, classifying **new**, **recurring**, **explicitly resolved**, and
+**not observed (unverified)**. Absence from the later assessment is **never
+proof of remediation**; an explicit `resolved` status change within the
+comparison window is required. Comparing overlapping or unfinished assessments
+is rejected. JSON includes evidence; Markdown offers a human-readable summary.
+
 ## Architecture
 - `core/` agent loop, tool registry, executor, SQLite memory, hash-chained audit log
 - `llm/` Ollama + any OpenAI-compatible backend (llama.cpp, vLLM, LM Studio)
