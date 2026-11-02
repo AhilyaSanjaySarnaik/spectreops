@@ -12,7 +12,11 @@ import time
 
 import pytest
 
-from spectreops.safety.lab_network import verify_offline_container
+from xml.etree import ElementTree
+
+from spectreops.safety.lab_network import (
+    LabIsolationError, nmap_lab, verify_offline_container,
+)
 
 
 @pytest.mark.skipif(
@@ -63,6 +67,41 @@ def test_offline_namespace_allows_loopback_but_denies_external():
         denied = runner(deny_code)
         assert denied.returncode == 0, denied.stderr
         assert denied.stdout.strip() == "DENIED"
+    finally:
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True,
+                       timeout=15, check=False)
+
+
+@pytest.mark.skipif(
+    os.getenv("SPECTREOPS_DOCKER_LAB") != "1" or shutil.which("docker") is None,
+    reason="requires explicitly enabled Docker network-isolation lab",
+)
+def test_real_nmap_only_scans_offline_lab():
+    """Run the actual SpectreOps scanner backend rather than a socket mock."""
+    image = "python:3.12-alpine"
+    started = subprocess.run(
+        ["docker", "run", "-d", "--rm", "--network", "none",
+         "--cap-drop", "ALL", image, "python", "-m", "http.server",
+         "8765", "--bind", "127.0.0.1"],
+        capture_output=True, text=True, timeout=30, check=True,
+    )
+    container = started.stdout.strip()
+    try:
+        result = None
+        for _ in range(10):
+            result = asyncio.run(nmap_lab("127.0.0.1", container, "8765"))
+            if "error" not in result:
+                root = ElementTree.fromstring(result["xml"])
+                if root.find(".//port[@portid='8765']/state[@state='open']") is not None:
+                    break
+            time.sleep(0.3)
+        assert result is not None
+        assert "error" not in result, result
+        root = ElementTree.fromstring(result["xml"])
+        assert root.find(".//port[@portid='8765']/state[@state='open']") is not None
+
+        with pytest.raises(LabIsolationError, match="loopback"):
+            asyncio.run(nmap_lab("192.0.2.1", container, "8765"))
     finally:
         subprocess.run(["docker", "rm", "-f", container], capture_output=True,
                        timeout=15, check=False)
