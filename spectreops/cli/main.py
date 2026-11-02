@@ -91,6 +91,8 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
 
         from urllib.parse import urlparse
 
+        if yes or cfg.agent.autonomy == "authorized":
+            raise ValueError("secure lab requires supervised approval (no --yes)")
         if cfg.runtime.allow_host_scanners or cfg.runtime.sandbox_network != "none":
             raise ValueError("secure lab requires host scanners disabled and sandbox_network none")
         if cfg.scope.mode != "active" or not cfg.runtime.offline:
