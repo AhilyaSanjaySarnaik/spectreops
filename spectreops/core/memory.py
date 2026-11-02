@@ -56,6 +56,17 @@ class Memory:
               FOREIGN KEY(finding_id) REFERENCES findings(id)
             )
         """)
+        # Backfill legacy findings once without losing original evidence.
+        self.conn.execute("""
+            INSERT INTO finding_observations
+              (finding_id,ts,severity,confidence,evidence,tool)
+            SELECT f.id,f.ts,f.severity,f.confidence,COALESCE(f.evidence,'{}'),
+                   COALESCE(f.tool,'')
+            FROM findings f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM finding_observations o WHERE o.finding_id=f.id
+            )
+        """)
         self.conn.commit()
 
     @staticmethod
@@ -86,7 +97,8 @@ class Memory:
         if existing is not None:
             with self.conn:
                 self.conn.execute(
-                    "UPDATE findings SET last_seen=?, seen_count=COALESCE(seen_count, 1)+1 "
+                    "UPDATE findings SET last_seen=?, seen_count=COALESCE(seen_count, 1)+1, "
+                    "status=CASE WHEN status='resolved' THEN 'open' ELSE status END "
                     "WHERE id=?", (now, existing),
                 )
                 self.conn.execute(
