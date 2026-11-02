@@ -3,18 +3,86 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse
 
 from ..core.assessments import AssessmentError, Assessments
 from ..core.audit import AuditLog
+from ..core.chat_sessions import ChatStore, reply_to_message
+from ..core.config import LLMConfig
+from ..llm.ollama import OllamaBackend
+from ..llm.openai_compat import OpenAICompatBackend
 from ..core.memory import Memory
 
-app = FastAPI(title="SpectreOps Dashboard")
+app = FastAPI(title="SpectreOps Cybersecurity Chat")
+CHAT_LLM_CONFIG = LLMConfig()
 
 # The data directory is fixed when the server starts. It used to be a query
 # parameter, which let any local page/process open an arbitrary path.
 DATA_DIR = Path(os.environ.get("SPECTREOPS_DATA_DIR", "~/.spectreops")).expanduser()
+
+
+def _chat_store() -> ChatStore:
+    return ChatStore(DATA_DIR / "chat.sqlite")
+
+
+def _chat_backend():
+    cfg = CHAT_LLM_CONFIG
+    backend = OllamaBackend if cfg.backend == "ollama" else OpenAICompatBackend
+    return backend(cfg.base_url, cfg.model, cfg.api_key_env,
+                   cfg.temperature, cfg.request_timeout)
+
+
+class ChatRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=100)
+    message: str = Field(min_length=1, max_length=12000)
+
+
+@app.get("/api/chats")
+def list_chats():
+    return _chat_store().list_sessions()
+
+
+@app.post("/api/chats")
+def create_chat(request: Request):
+    _same_origin(request)
+    session_id = _chat_store().create_session()
+    return {"id": session_id}
+
+
+@app.get("/api/chats/{session_id}")
+def get_chat(session_id: str):
+    store = _chat_store()
+    if not store.exists(session_id):
+        raise HTTPException(status_code=404, detail="conversation not found")
+    return {"id": session_id, "messages": store.messages(session_id)}
+
+
+def _same_origin(request: Request) -> None:
+    origin = request.headers.get("origin")
+    if origin and origin != str(request.base_url).rstrip("/"):
+        raise HTTPException(status_code=403, detail="cross-origin request denied")
+
+
+@app.post("/api/chat")
+async def chat_message(body: ChatRequest, request: Request):
+    _same_origin(request)
+    store = _chat_store()
+    if not store.exists(body.session_id):
+        raise HTTPException(status_code=404, detail="conversation not found")
+    backend = _chat_backend()
+    try:
+        reply = await reply_to_message(store, body.session_id, body.message,
+                                       backend, CHAT_LLM_CONFIG.model)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        # Never return upstream response bodies: they can contain credentials.
+        raise HTTPException(status_code=502, detail="model backend unavailable") from exc
+    finally:
+        await backend._client.aclose()
+    return {"reply": reply, "session_id": body.session_id}
 
 
 def _memory() -> Memory:
@@ -95,15 +163,23 @@ def audit_verify():
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    """Render the local-only, read-only assessment trends dashboard."""
-    return (Path(__file__).with_name("overview.html").read_text(encoding="utf-8"))
+    """Chat-first assistant, with assessment dashboard still under /trends."""
+    return Path(__file__).with_name("chat.html").read_text(encoding="utf-8")
+
+
+@app.get("/trends", response_class=HTMLResponse)
+def trend_page():
+    return Path(__file__).with_name("overview.html").read_text(encoding="utf-8")
 
 
 
-def serve(data_dir: str = "~/.spectreops", port: int = 8765) -> None:
-    global DATA_DIR
+def serve(data_dir: str = "~/.spectreops", port: int = 8765,
+          llm_config: LLMConfig | None = None) -> None:
+    global DATA_DIR, CHAT_LLM_CONFIG
     import uvicorn
     DATA_DIR = Path(data_dir).expanduser()
+    if llm_config is not None:
+        CHAT_LLM_CONFIG = llm_config
     # localhost-only by default; remote bind must be an explicit change
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
