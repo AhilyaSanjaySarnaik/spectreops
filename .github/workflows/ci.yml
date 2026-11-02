@@ -28,6 +28,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: docker pull python:3.12-alpine
+      - run: docker build -t spectreops/lab-scanner:latest docker/lab-scanner
       - name: Verify offline network namespace boundaries
         env:
           SPECTREOPS_DOCKER_LAB: "1"
