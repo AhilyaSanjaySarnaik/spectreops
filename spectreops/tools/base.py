@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import shutil
-from urllib.parse import urljoin, urlsplit
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
 from ..core.auth import current_auth
 from ..core.rate_limit import current_limiter
-from ..scope.validator import ScopeViolation
 
 BODY_CAP = 20000
 
