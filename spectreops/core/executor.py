@@ -125,7 +125,8 @@ class Executor:
                 f"phase (current: '{self.plan.current_phase()}')")
 
     def _needs_approval(self, tool: Tool) -> bool:
-        return (tool.unscoped or tool.host_subprocess
+        return ((self.secure_lab_only and tool.name == "nmap_scan")
+                or tool.unscoped or tool.host_subprocess
                 or self.approval.requires_approval(tool.tags, tool.danger))
 
     # --------------------------------------------------------------- sanitise
