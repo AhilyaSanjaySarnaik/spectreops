@@ -196,6 +196,10 @@ class Executor:
                 self.audit.record("tool_end", actor="executor", tool=name,
                                   ok=True, attempt=attempt)
                 return self._sanitize(result)
+            except ScopeViolation as e:
+                self.audit.record("tool_blocked", actor="executor", tool=name,
+                                  args=logged, reason=str(e))
+                return {"error": f"scope violation: {e}"}
             except TRANSIENT_ERRORS as e:
                 last_err = e
                 await asyncio.sleep(min(2 ** attempt, 10))
