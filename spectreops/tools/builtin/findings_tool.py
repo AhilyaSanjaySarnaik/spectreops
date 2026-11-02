@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+from ...core.assessments import Assessments
 from ...core.memory import Memory
 
 SEVERITIES = ["critical", "high", "medium", "low", "info"]
@@ -35,6 +36,8 @@ def make_record_finding(memory: Memory) -> Callable[[dict], Awaitable[dict]]:
             tool=str(args.get("tool", "")),
             reproduction=str(args.get("reproduction", "")),
             remediation=str(args.get("remediation", "")))
+        Assessments(memory).record(fid, severity=sev, confidence=conf,
+                                   evidence=evidence, tool=str(args.get("tool", "")))
         return {"recorded": duplicate_id is None, "id": fid,
                 "duplicate": duplicate_id is not None}
 
