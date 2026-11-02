@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 import httpx
 
 from ..core.auth import current_auth
+from ..core.egress import check_http_url
 from ..core.rate_limit import current_limiter
 
 BODY_CAP = 20000
@@ -31,6 +32,7 @@ async def http_request(method: str, url: str, *, identity: str | None = None,
     credential when the request host has one configured. `raw=True` also returns
     the request line and sent headers (with secrets still redacted downstream)
     so the result can be stored as finding evidence."""
+    check_http_url(url)
     headers, cookies, params = current_auth().apply(url, headers or {}, identity)
     if cookies:
         kw["cookies"] = {**kw.get("cookies", {}), **cookies}
