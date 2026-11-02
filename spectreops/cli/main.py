@@ -13,6 +13,7 @@ from rich.table import Table
 
 from ..core.agent import Agent
 from ..core.audit import AuditLog
+from ..core.auth import AuthStore
 from ..core.config import AppConfig, load_config
 from ..core.executor import Executor
 from ..core.memory import Memory
@@ -91,6 +92,9 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
                                  network=cfg.runtime.sandbox_network))
 
     approval = make_approval(cfg, yes)
+    auth = AuthStore.from_config(cfg.auth)
+    for w in auth.warnings:
+        audit.record("auth_warning", actor="cli", detail=w)
     plan, plan_path = load_or_create_plan(plan_path, cfg.runtime.data_dir, objective)
     for tool in make_plan_tools(plan, approval, policy.mode,
                                 on_change=lambda p: p.save(plan_path), audit=audit):
@@ -99,7 +103,7 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
     executor = Executor(registry, validator, audit,
                         cfg.agent.max_tool_timeout, cfg.agent.max_retries,
                         approval=approval, autonomy=cfg.agent.autonomy,
-                        redact_secrets=cfg.runtime.redact_secrets, plan=plan)
+                        redact_secrets=cfg.runtime.redact_secrets, plan=plan, auth=auth)
     agent = Agent(make_llm(cfg), registry, executor, cfg.agent.max_tool_rounds,
                   cfg.llm.model, plan=plan)
     return Runtime(cfg, policy, validator, audit, memory, registry, executor, agent,
@@ -147,6 +151,26 @@ def scope(config: Path = ConfigOpt):
         "autonomy": rt.cfg.agent.autonomy,
         "allowed_hosts": sorted(rt.validator._allowed),
     }))
+
+
+@app.command()
+def auth(config: Path = ConfigOpt):
+    """Show configured auth identities and the hosts they cover (never the values)."""
+    rt = build(config)
+    store = rt.executor.auth
+    if not store.identities:
+        console.print("no auth identities configured")
+    else:
+        t = Table("identity", "active", "hosts", "kinds")
+        for name in store.names():
+            ident = store.identities[name]
+            hosts = sorted(ident._creds)
+            kinds = sorted({c.kind for c in ident._creds.values()})
+            t.add_row(name, "✓" if name == store.active else "",
+                      ", ".join(hosts), ", ".join(kinds))
+        console.print(t)
+    for w in store.warnings:
+        console.print(f"[yellow]warning:[/yellow] {w}")
 
 
 @app.command()

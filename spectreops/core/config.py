@@ -50,12 +50,20 @@ class AuditConfig(BaseModel):
     hash_chain: bool = True
 
 
+class AuthConfig(BaseModel):
+    # identities: name -> { "host[:port]": {kind, token_env|value_env|secret, header?} }
+    # Raw secrets are NEVER stored here — only the env var / secret-store name.
+    identities: dict[str, dict[str, dict]] = Field(default_factory=dict)
+    active: str = ""           # default identity to use when a tool names none
+
+
 class AppConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
     agent: AgentConfig = AgentConfig()
     scope: ScopeConfig = ScopeConfig()
     runtime: RuntimeConfig = RuntimeConfig()
     audit: AuditConfig = AuditConfig()
+    auth: AuthConfig = AuthConfig()
     raw: dict = Field(default_factory=dict, exclude=True)
 
     @field_validator("runtime")

@@ -13,7 +13,7 @@ else
   echo "[!] Ollama not found. Install from https://ollama.com"
 fi
 echo "[*] Optional security tools:"
-for t in nmap nuclei subfinder ffuf sqlmap trivy semgrep; do
+for t in nmap nuclei subfinder ffuf sqlmap trivy semgrep katana arjun gau; do
   command -v "$t" >/dev/null && echo "    [x] $t" || echo "    [ ] $t  (optional)"
 done
 mkdir -p ~/.spectreops

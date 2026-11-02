@@ -9,8 +9,10 @@ Local-first AI cybersecurity & red-team agent for authorized testing.
     source .venv/bin/activate
 
 Requires Python 3.11+ and a local LLM (default: Ollama, `ollama pull qwen2.5-coder:7b`).
-Optional tools: nmap, nuclei, subfinder, trivy. Tools whose binary is missing
-report that clearly instead of crashing; `spec tools` shows what is available.
+Optional external tools: nmap, nuclei, subfinder, ffuf, katana, arjun, gau,
+sqlmap, trivy. Tools whose binary is missing report that clearly instead of
+crashing; `spec tools` shows what is available. Fingerprinting, GraphQL
+introspection and the HTTP request/replay tools are built in (no binary needed).
 
 ## Quick start (local lab)
     docker compose -f docker/vulnlab/docker-compose.yml up -d   # Juice Shop + DVWA on 127.0.0.1
@@ -29,8 +31,38 @@ report that clearly instead of crashing; `spec tools` shows what is available.
 - `llm/` Ollama + any OpenAI-compatible backend (llama.cpp, vLLM, LM Studio)
 - `scope/` authoritative target validation (enforced in code, not prompts)
 - `safety/` sandbox, approval gates, prompt-injection scrubbing, secret redaction
+- `core/auth.py` per-host credentials and named identities for authenticated testing
 - `tools/` tool adapters; each declares its danger level and which args are targets
 - `reporting/` Markdown, JSON, SARIF 2.1.0 and HTML exporters
+
+## Tool coverage
+Grouped by phase (danger level in brackets):
+
+- **Recon/discovery:** `dns_lookup` (safe), `subfinder_enum` / `archive_urls`
+  (safe, third-party — offline-blocked), `nmap_scan` (active, flag allowlist),
+  `http_probe` / `http_fingerprint` (active), `crawl` (katana, active),
+  `param_discover` (arjun, active)
+- **API:** `openapi_endpoints` (safe), `graphql_introspect` (active)
+- **Content/param fuzzing:** `dir_brute` (active), `ffuf_fuzz` (active, local
+  wordlists only)
+- **Manual request/replay:** `http_send` (active), `http_replay` (active —
+  replays one request across auth identities to surface BOLA/IDOR)
+- **Vuln scanning:** `nuclei_scan` (active, local templates, no OOB),
+  `trivy_scan` (safe, local)
+- **Active exploitation:** `sqlmap_test` (exploit — detection/enumeration only,
+  OS/file/shell options disabled; runs only in the exploit phase, with approval)
+- **Shell:** `run_shell` (sandboxed; scope mode `full` + approval every call)
+- **Reporting:** `record_finding` (store a finding with request/response evidence)
+
+### Authenticated & multi-identity testing
+Configure auth identities in the `auth` config section (see `config/default.yaml`).
+Raw tokens are never stored in config — each credential names an env var or a
+secrets-store key, and resolved values are registered for redaction. A credential
+is only ever sent to the host it was configured for, so a token can't leak across
+hosts even if the model asks. Tools take an `identity` argument; `http_replay`
+takes a list of identities and diffs the responses — the primitive for broken
+object/function-level authorization. `spec auth` lists identities and their hosts
+(never the values).
 
 ## Security model
 Every tool call the model makes goes through `Executor.run`, which enforces, in order:
@@ -42,7 +74,7 @@ Every tool call the model makes goes through `Executor.run`, which enforces, in 
 3. **Targets** — every declared target argument (URL, host, IP or CIDR) must be in
    scope and not excluded; any URL found in *any* other argument is checked too.
    Multi-target strings are rejected.
-4. **Offline mode** — tools that contact third parties (e.g. subfinder) are disabled.
+4. **Offline mode** — tools that contact third parties (e.g. subfinder, gau) are disabled.
 5. **Unscoped tools** (`run_shell`) need scope mode `full` *and* approval on every call.
 6. **Output** — tool output is scrubbed for prompt-injection phrases and secrets are
    redacted before it reaches the model; audit records redact secrets too.

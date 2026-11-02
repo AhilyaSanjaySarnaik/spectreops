@@ -20,6 +20,20 @@ _PATTERNS = [
 
 _cache: tuple[Path, float, dict[str, str]] | None = None
 
+# Secret values discovered at runtime (auth tokens resolved from env, etc.) that
+# are never written to the secrets file but must still be redacted from output.
+_RUNTIME_SECRETS: set[str] = set()
+
+
+def register_runtime_secret(value: str) -> None:
+    """Register a secret value (e.g. an auth token) so redact() masks it."""
+    if value and len(value) >= 4:
+        _RUNTIME_SECRETS.add(value)
+
+
+def clear_runtime_secrets() -> None:
+    _RUNTIME_SECRETS.clear()
+
 
 def load_secrets() -> dict[str, str]:
     """Load stored secrets, re-reading the file only when it changes."""
@@ -49,7 +63,8 @@ def store_secret(name: str, value: str) -> Path:
 
 def redact(text: str, extra_values: dict[str, str] | None = None) -> str:
     """Redact known secret values and common secret patterns from output."""
-    values = list((extra_values or {}).values()) + list(load_secrets().values())
+    values = (list((extra_values or {}).values()) + list(load_secrets().values())
+              + list(_RUNTIME_SECRETS))
     # longest first so a secret that contains another is fully replaced
     for value in sorted(values, key=len, reverse=True):
         if value and len(value) >= 4:

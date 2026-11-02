@@ -6,7 +6,10 @@ from typing import Any
 
 import httpx
 
+from ..core.auth import current_auth
 from ..core.rate_limit import current_limiter
+
+BODY_CAP = 20000
 
 
 def require_binary(name: str) -> str:
@@ -19,18 +22,38 @@ def require_binary(name: str) -> str:
     return path
 
 
-async def http_request(method: str, url: str, **kw: Any) -> dict:
+async def http_request(method: str, url: str, *, identity: str | None = None,
+                       headers: dict[str, str] | None = None,
+                       follow_redirects: bool = False, raw: bool = False,
+                       **kw: Any) -> dict:
+    """Make one rate-limited HTTP request, attaching the active identity's
+    credential when the request host has one configured. `raw=True` also returns
+    the request line and sent headers (with secrets still redacted downstream)
+    so the result can be stored as finding evidence."""
+    headers, cookies, params = current_auth().apply(url, headers or {}, identity)
+    if cookies:
+        kw["cookies"] = {**kw.get("cookies", {}), **cookies}
+    if params:
+        kw["params"] = {**kw.get("params", {}), **params}
     async with httpx.AsyncClient(verify=False, timeout=30,
-                                 follow_redirects=False) as client:
+                                 follow_redirects=follow_redirects) as client:
         async with current_limiter().slot():
-            resp = await client.request(method, url, **kw)
-        return {"status": resp.status_code,
-                "headers": dict(resp.headers),
-                "body": resp.text[:20000]}
+            resp = await client.request(method, url, headers=headers, **kw)
+        out = {"status": resp.status_code,
+               "url": str(resp.url),
+               "headers": dict(resp.headers),
+               "body": resp.text[:BODY_CAP]}
+        if raw:
+            out["request"] = {"method": method.upper(), "url": url,
+                              "headers": dict(resp.request.headers),
+                              "identity": identity or current_auth().active}
+        return out
 
 
 TOOL_BINARIES = {"nmap_scan": "nmap", "nuclei_scan": "nuclei",
-                 "subfinder_enum": "subfinder", "trivy_scan": "trivy"}
+                 "subfinder_enum": "subfinder", "trivy_scan": "trivy",
+                 "ffuf_fuzz": "ffuf", "crawl": "katana", "param_discover": "arjun",
+                 "archive_urls": "gau", "sqlmap_test": "sqlmap"}
 
 
 def missing_binary(tool_name: str) -> str | None:

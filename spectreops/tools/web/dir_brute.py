@@ -4,6 +4,7 @@ import asyncio
 
 import httpx
 
+from ...core.auth import current_auth
 from ...core.rate_limit import current_limiter
 
 DEFAULT_WORDS = ["admin", "login", "dashboard", "api", "backup", ".git",
@@ -15,9 +16,11 @@ async def dir_brute(args: dict) -> dict:
     words: list[str] = args.get("words") or DEFAULT_WORDS
     codes = set(args.get("interesting_codes", [200, 301, 302, 401, 403]))
     limiter = current_limiter()      # engagement rate + concurrency ceiling
+    headers, cookies, params = current_auth().apply(base, {}, args.get("identity"))
     hits: list[dict] = []
-    async with httpx.AsyncClient(verify=False, timeout=15,
-                                 follow_redirects=False) as client:
+    async with httpx.AsyncClient(verify=False, timeout=15, follow_redirects=False,
+                                 headers=headers, cookies=cookies,
+                                 params=params or None) as client:
         async def probe(path: str) -> None:
             try:
                 async with limiter.slot():

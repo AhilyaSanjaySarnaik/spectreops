@@ -32,3 +32,21 @@ runtime:
 audit:
   enabled: true
   hash_chain: true             # each JSONL record hashes the previous one
+
+# Optional: authenticated testing. Raw secrets are NEVER written here — each
+# credential names an environment variable (token_env/value_env) or a key in the
+# secrets store (secret). Credentials are only ever sent to the host they are
+# configured for. Define multiple identities to test for broken authorization
+# (BOLA/IDOR) by replaying one identity's request as another.
+# auth:
+#   active: primary
+#   identities:
+#     primary:
+#       "127.0.0.1:3000":
+#         kind: bearer            # bearer | header | cookie | basic | query
+#         token_env: SPECTREOPS_TOKEN_PRIMARY
+#     secondary:
+#       "127.0.0.1:3000":
+#         kind: header
+#         header: X-API-Key
+#         value_env: SPECTREOPS_KEY_SECONDARY

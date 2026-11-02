@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from ..core.audit import AuditLog
+from ..core.auth import AuthStore, reset_auth, use_auth
 from ..core.rate_limit import RateLimiter, reset_limiter, use_limiter
 from ..core.tool_registry import Tool, ToolRegistry
 from ..safety.approval import ApprovalGate
@@ -44,7 +45,7 @@ class Executor:
                  audit: AuditLog, max_timeout: int = 600, max_retries: int = 2,
                  approval: ApprovalGate | None = None, autonomy: str = "supervised",
                  redact_secrets: bool = True, limiter: RateLimiter | None = None,
-                 plan=None):
+                 plan=None, auth: AuthStore | None = None):
         self.registry = registry
         self.validator = validator
         self.audit = audit
@@ -59,6 +60,7 @@ class Executor:
         pol = validator.policy
         self.limiter = limiter or RateLimiter(getattr(pol, "rate_limit", 10.0),
                                               getattr(pol, "concurrency", 5))
+        self.auth = auth or AuthStore.empty()
 
     # ------------------------------------------------------------------ checks
     def _check_scope(self, tool: Tool, args: dict) -> None:
@@ -174,13 +176,15 @@ class Executor:
         last_err: BaseException | None = None
         for attempt in range(retries + 1):
             try:
-                token = use_limiter(self.limiter) if tool.network else None
+                tokens = ([use_limiter(self.limiter), use_auth(self.auth)]
+                          if tool.network else [])
                 try:
                     result = await asyncio.wait_for(tool.handler(args),
                                                     timeout=self.max_timeout)
                 finally:
-                    if token is not None:
-                        reset_limiter(token)
+                    if tokens:
+                        reset_auth(tokens[1])
+                        reset_limiter(tokens[0])
                 self.audit.record("tool_end", actor="executor", tool=name,
                                   ok=True, attempt=attempt)
                 return self._sanitize(result)
