@@ -87,9 +87,9 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
     register_all(registry)
     secure_lab = bool(cfg.runtime.secure_lab_container_id)
     if secure_lab:
-        from ..safety.lab_network import nmap_lab
-
         from urllib.parse import urlparse
+
+        from ..safety.lab_network import nmap_lab
 
         if yes or cfg.agent.autonomy == "authorized":
             raise ValueError("secure lab requires supervised approval (no --yes)")
