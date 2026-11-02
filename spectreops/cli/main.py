@@ -109,7 +109,8 @@ def build(config_path: Path | None, yes: bool = False, plan_path: Path | None = 
     executor = Executor(registry, validator, audit,
                         cfg.agent.max_tool_timeout, cfg.agent.max_retries,
                         approval=approval, autonomy=cfg.agent.autonomy,
-                        redact_secrets=cfg.runtime.redact_secrets, plan=plan, auth=auth)
+                        redact_secrets=cfg.runtime.redact_secrets, plan=plan, auth=auth,
+                        allow_host_scanners=cfg.runtime.allow_host_scanners)
     agent = Agent(make_llm(cfg), registry, executor, cfg.agent.max_tool_rounds,
                   cfg.llm.model, plan=plan)
     return Runtime(cfg, policy, validator, audit, memory, registry, executor, agent,

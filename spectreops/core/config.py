@@ -41,9 +41,11 @@ class ScopeConfig(BaseModel):
 class RuntimeConfig(BaseModel):
     data_dir: Path = Path.home() / ".spectreops"
     sandbox: Literal["auto", "docker", "bwrap", "none"] = "auto"
-    sandbox_network: Literal["host", "none"] = "host"
+    sandbox_network: Literal["host", "none"] = "none"
     offline: bool = True
     redact_secrets: bool = True
+    # Dangerous escape hatch: scanners have no network namespace containment yet.
+    allow_host_scanners: bool = False
 
 
 class AuditConfig(BaseModel):
