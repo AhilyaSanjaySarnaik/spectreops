@@ -28,6 +28,8 @@ class Tool:
     # True when the tool contacts third-party services (not the target),
     # e.g. passive DNS/CT sources. Blocked when runtime.offline is true.
     third_party_egress: bool = False
+    # Runs a standalone executable directly on the host, outside the Sandbox.
+    host_subprocess: bool = False
 
     def openai_schema(self) -> dict:
         return {"type": "function",
