@@ -18,3 +18,17 @@ jobs:
       - run: pip install -e ".[dev,dashboard]"
       - run: ruff check .
       - run: pytest -q
+
+  docker-egress-lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: docker pull python:3.12-alpine
+      - name: Verify offline network namespace boundaries
+        env:
+          SPECTREOPS_DOCKER_LAB: "1"
+        run: pytest -q tests/integration/test_docker_offline_egress.py
