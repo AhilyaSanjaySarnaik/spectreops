@@ -38,6 +38,7 @@ def test_reject_unknown_sandbox_modes(mode):
     with pytest.raises(ValueError, match="sandbox mode"):
         sandbox.Sandbox(mode=mode)
 
+
 def test_shell_sandbox_network_is_disabled_by_default(monkeypatch):
     from spectreops.core.config import RuntimeConfig
 
