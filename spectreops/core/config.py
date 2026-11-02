@@ -44,6 +44,8 @@ class RuntimeConfig(BaseModel):
     sandbox_network: Literal["host", "none"] = "host"
     offline: bool = True
     redact_secrets: bool = True
+    # Dangerous escape hatch: scanners have no network namespace containment yet.
+    allow_host_scanners: bool = False
 
 
 class AuditConfig(BaseModel):
