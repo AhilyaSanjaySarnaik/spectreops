@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import json
 
+import httpx
 import yaml
 
-from ..base import http_request
+from ...core.rate_limit import current_limiter
 
 
 async def openapi_endpoints(args: dict) -> dict:
     url = args["url"]
-    response = await http_request("GET", url)
-    if "error" in response:
-        return {"error": response["error"], "spec_url": url}
-    raw = response["body"]
+    async with httpx.AsyncClient(verify=True, trust_env=False, timeout=30,
+                                 follow_redirects=False) as client:
+        async with current_limiter().slot():
+            raw = (await client.get(url)).text
     try:
         spec = json.loads(raw)
     except json.JSONDecodeError:
