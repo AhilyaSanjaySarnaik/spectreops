@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from spectreops.cli.main import build
-from spectreops.core.config import AppConfig, RuntimeConfig
+from spectreops.core.config import AppConfig
 
 
 def test_secure_lab_defaults_disabled():
