@@ -27,6 +27,20 @@ class Finding:
             f"### Remediation\n{self.remediation or 'TBD'}\n")
 
 
+def from_memory(rows: list[dict]) -> list[Finding]:
+    """Convert Memory.findings() rows into Finding objects for the exporters."""
+    return [Finding(title=r["title"], severity=r["severity"],
+                    confidence=r["confidence"], target=r["target"] or "",
+                    evidence=r["evidence"] if isinstance(r["evidence"], dict) else {},
+                    tool=r["tool"] or "", reproduction=r.get("reproduction") or "",
+                    remediation=r.get("remediation") or "")
+            for r in rows]
+
+
+def as_dicts(findings: list[Finding]) -> list[dict]:
+    return [asdict(f) for f in dedup_and_sort(findings)]
+
+
 def dedup_and_sort(findings: list[Finding]) -> list[Finding]:
     seen: set[tuple] = set()
     out = []

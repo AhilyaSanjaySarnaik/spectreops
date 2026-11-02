@@ -1,43 +1,17 @@
-# spectreops/llm/base.py
+# spectreops/llm/ollama.py
+"""Ollama backend.
+
+Ollama exposes an OpenAI-compatible ``/v1/chat/completions`` endpoint, so this
+is a thin subclass that only changes defaults. Kept as its own class so
+Ollama-specific options (keep_alive, num_ctx, ...) have an obvious home.
+"""
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from .openai_compat import OpenAICompatBackend
 
 
-@dataclass
-class Message:
-    role: str                       # system | user | assistant | tool
-    content: str | None = None
-    tool_calls: list[dict] = field(default_factory=list)
-    tool_call_id: str | None = None
-    name: str | None = None
-
-    def to_wire(self) -> dict:
-        d: dict[str, Any] = {"role": self.role}
-        if self.content is not None:
-            d["content"] = self.content
-        if self.tool_calls:
-            d["tool_calls"] = self.tool_calls
-        if self.tool_call_id:
-            d["tool_call_id"] = self.tool_call_id
-        if self.name:
-            d["name"] = self.name
-        return d
-
-
-class LLMError(Exception):
-    pass
-
-
-class LLMBackend(ABC):
-    @abstractmethod
-    async def chat(self, messages: list[Message], tools: list[dict] | None = None,
-                   model: str | None = None, temperature: float | None = None,
-                   ) -> Message:
-        """One completion round. Tool calls returned in Message.tool_calls."""
-
-    @abstractmethod
-    async def stream(self, messages: list[Message], **kw) -> AsyncIterator[str]:
-        ...
+class OllamaBackend(OpenAICompatBackend):
+    def __init__(self, base_url: str = "http://127.0.0.1:11434",
+                 model: str = "qwen2.5-coder:7b", api_key_env: str = "",
+                 temperature: float = 0.2, timeout: int = 300):
+        super().__init__(base_url, model, api_key_env, temperature, timeout)

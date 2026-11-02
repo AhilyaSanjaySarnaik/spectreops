@@ -24,7 +24,8 @@ scope:
 
 runtime:
   data_dir: ~/.spectreops      # engagements, memory DBs, evidence, logs
-  sandbox: auto                # auto | docker | bwrap | none
+  sandbox: auto                # auto | docker | bwrap | none  (docker: run docker/tools/build.sh)
+  sandbox_network: host        # host (reach lab targets) | none (fully isolated)
   offline: true                # refuse any non-target egress when true
   redact_secrets: true
 

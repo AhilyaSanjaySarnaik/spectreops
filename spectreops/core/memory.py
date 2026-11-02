@@ -19,32 +19,50 @@ CREATE TABLE IF NOT EXISTS hosts (
 """
 
 
+# columns added after the first release; applied to existing DBs on open
+_MIGRATIONS = {"reproduction": "TEXT DEFAULT ''", "remediation": "TEXT DEFAULT ''"}
+_FINDING_KEYS = ["id", "ts", "title", "severity", "confidence", "target",
+                 "evidence", "tool", "status", "reproduction", "remediation"]
+
+
 class Memory:
     def __init__(self, db_path: Path):
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path)
         self.conn.executescript(SCHEMA)
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(findings)")}
+        for col, decl in _MIGRATIONS.items():
+            if col not in cols:
+                self.conn.execute(f"ALTER TABLE findings ADD COLUMN {col} {decl}")
+        self.conn.commit()
 
     def add_finding(self, title: str, severity: str, confidence: str,
-                    target: str, evidence: dict, tool: str) -> int:
+                    target: str, evidence: dict, tool: str,
+                    reproduction: str = "", remediation: str = "") -> int:
         cur = self.conn.execute(
-            "INSERT INTO findings (ts,title,severity,confidence,target,evidence,tool)"
-            " VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO findings (ts,title,severity,confidence,target,evidence,tool,"
+            "reproduction,remediation) VALUES (?,?,?,?,?,?,?,?,?)",
             (time.time(), title, severity, confidence, target,
-             json.dumps(evidence), tool))
+             json.dumps(evidence, default=str), tool, reproduction, remediation))
         self.conn.commit()
         return cur.lastrowid  # type: ignore[return-value]
 
     def findings(self, severity: str | None = None) -> list[dict]:
-        q = "SELECT id,ts,title,severity,confidence,target,evidence,tool,status FROM findings"
+        q = f"SELECT {','.join(_FINDING_KEYS)} FROM findings"
         args: tuple = ()
         if severity:
             q += " WHERE severity=?"
             args = (severity,)
-        rows = self.conn.execute(q, args).fetchall()
-        keys = ["id", "ts", "title", "severity", "confidence", "target",
-                "evidence", "tool", "status"]
-        return [dict(zip(keys, r)) for r in rows]
+        rows = self.conn.execute(q + " ORDER BY id", args).fetchall()
+        out = []
+        for r in rows:
+            d = dict(zip(_FINDING_KEYS, r, strict=True))
+            try:
+                d["evidence"] = json.loads(d["evidence"] or "{}")
+            except json.JSONDecodeError:
+                pass
+            out.append(d)
+        return out
 
     def upsert_host(self, host: str, info: dict) -> None:
         self.conn.execute(

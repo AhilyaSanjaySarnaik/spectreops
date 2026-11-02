@@ -1,6 +1,6 @@
 # tests/unit/test_registry.py
-import json
 import pytest
+
 from spectreops.core.tool_registry import Tool, ToolRegistry
 
 

@@ -1,0 +1,12 @@
+# Intentionally vulnerable targets for local testing. Matches
+# config/examples/local_lab.yaml. Bound to 127.0.0.1 only — never expose these.
+#   docker compose -f docker/vulnlab/docker-compose.yml up -d
+services:
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    ports: ["127.0.0.1:3000:3000"]
+    restart: unless-stopped
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    ports: ["127.0.0.1:8080:80"]
+    restart: unless-stopped

@@ -5,11 +5,14 @@ import json
 import httpx
 import yaml
 
+from ...core.rate_limit import current_limiter
+
 
 async def openapi_endpoints(args: dict) -> dict:
     url = args["url"]
     async with httpx.AsyncClient(verify=False, timeout=30) as client:
-        raw = (await client.get(url)).text
+        async with current_limiter().slot():
+            raw = (await client.get(url)).text
     try:
         spec = json.loads(raw)
     except json.JSONDecodeError:

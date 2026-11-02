@@ -4,12 +4,12 @@ from __future__ import annotations
 import re
 
 _INJECTION_PATTERNS = [
-    re.compile(r"ignore (all )?(previous|prior) instructions", re.I),
-    re.compile(r"disregard (the )?system prompt", re.I),
-    re.compile(r"you are now (a|an) .{0,40}(agent|assistant|mode)", re.I),
-    re.compile(r"(disable|bypass|turn off) (your )?(safety|security|filters)", re.I),
-    re.compile(r"reveal (your )?(system )?prompt", re.I),
-    re.compile(r"add .* to (your )?scope", re.I),
+    re.compile(r"ignore (all )?(previous|prior) instructions", re.IGNORECASE),
+    re.compile(r"disregard (the )?system prompt", re.IGNORECASE),
+    re.compile(r"you are now (a|an) .{0,40}(agent|assistant|mode)", re.IGNORECASE),
+    re.compile(r"(disable|bypass|turn off) (your )?(safety|security|filters)", re.IGNORECASE),
+    re.compile(r"reveal (your )?(system )?prompt", re.IGNORECASE),
+    re.compile(r"add .* to (your )?scope", re.IGNORECASE),
 ]
 
 

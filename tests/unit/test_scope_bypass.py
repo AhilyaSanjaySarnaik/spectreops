@@ -4,7 +4,7 @@ from spectreops.core.audit import AuditLog
 from spectreops.core.executor import Executor
 from spectreops.core.tool_registry import Tool, ToolRegistry
 from spectreops.scope.policy import Policy
-from spectreops.scope.validator import ScopeValidator, ScopeViolation
+from spectreops.scope.validator import ScopeValidator
 
 
 def _setup(tmp_path, mode="active", offline=True):

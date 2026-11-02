@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+
+# Argument names that, by default, are treated as network targets and
+# validated against scope before a tool runs.
+DEFAULT_TARGET_KEYS: tuple[str, ...] = (
+    "host", "target", "url", "domain", "hostname", "ip", "base_url")
 
 
 @dataclass
@@ -13,6 +18,16 @@ class Tool:
     handler: Callable[[dict], Awaitable[dict]]
     tags: set[str] = field(default_factory=set)   # e.g. {"recon","active"}
     danger: str = "safe"                   # safe | active | exploit | destructive
+    # Which arguments name a network target. () = tool takes no network target.
+    target_keys: tuple[str, ...] = DEFAULT_TARGET_KEYS
+    # False for purely local tools (file scanners, finding recorders).
+    network: bool = True
+    # True when the executor cannot know where the tool will connect
+    # (e.g. a shell). Such tools need scope mode 'full' plus operator approval.
+    unscoped: bool = False
+    # True when the tool contacts third-party services (not the target),
+    # e.g. passive DNS/CT sources. Blocked when runtime.offline is true.
+    third_party_egress: bool = False
 
     def openai_schema(self) -> dict:
         return {"type": "function",
@@ -41,6 +56,7 @@ class ToolRegistry:
         return [t.openai_schema() for t in tools]
 
     async def dispatch(self, name: str, arguments: str | dict) -> dict:
+        """Unchecked dispatch (no scope/approval). Use Executor.run for agent calls."""
         tool = self._tools.get(name)
         if tool is None:
             return {"error": f"unknown tool: {name}"}

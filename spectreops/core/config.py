@@ -40,6 +40,7 @@ class ScopeConfig(BaseModel):
 class RuntimeConfig(BaseModel):
     data_dir: Path = Path.home() / ".spectreops"
     sandbox: Literal["auto", "docker", "bwrap", "none"] = "auto"
+    sandbox_network: Literal["host", "none"] = "host"
     offline: bool = True
     redact_secrets: bool = True
 
@@ -65,23 +66,33 @@ class AppConfig(BaseModel):
 
 
 def load_config(path: Path | None = None) -> AppConfig:
-    """Load config from YAML, then environment overrides (SPECTREOPS_*)."""
+    """Load config from YAML, then environment overrides.
+
+    Overrides use a double underscore between section and field, e.g.
+    ``SPECTREOPS_LLM__MODEL=qwen2.5-coder:7b`` or ``SPECTREOPS_SCOPE__MODE=active``.
+    They are merged *before* validation, so invalid values are rejected.
+    """
     data: dict = {}
-    if path and path.exists():
+    if path is not None:
+        if not path.exists():
+            raise FileNotFoundError(f"config file not found: {path}")
         data = yaml.safe_load(path.read_text()) or {}
-    cfg = AppConfig.model_validate(data)
-    # env overrides: SPECTREOPS_LLM_MODEL, SPECTREOPS_SCOPE_MODE, etc.
+    merged = {k: dict(v) if isinstance(v, dict) else v for k, v in data.items()}
     prefix = "SPECTREOPS_"
     for key, value in os.environ.items():
         if not key.startswith(prefix):
             continue
         parts = key[len(prefix):].lower().split("__")
-        section = getattr(cfg, parts[0], None)
-        if section is not None and isinstance(section, BaseModel) and len(parts) == 2:
-            field = section.model_fields.get(parts[1])
-            if field:
-                cast = {bool: lambda x: x.lower() in ("1", "true", "yes"),
-                        int: int, float: float}.get(field.annotation, str)
-                setattr(section, parts[1], cast(value))
+        if len(parts) != 2 or parts[0] not in AppConfig.model_fields:
+            continue
+        section = merged.setdefault(parts[0], {})
+        if isinstance(section, dict):
+            # lists (targets, exclusions) may be given as comma-separated values
+            field = AppConfig.model_fields[parts[0]].annotation.model_fields.get(parts[1])
+            if field is not None and getattr(field.annotation, "__origin__", None) is list:
+                section[parts[1]] = [v.strip() for v in value.split(",") if v.strip()]
+            else:
+                section[parts[1]] = value
+    cfg = AppConfig.model_validate(merged)
     cfg.raw = data
     return cfg

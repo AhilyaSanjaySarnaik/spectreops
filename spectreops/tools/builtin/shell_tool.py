@@ -1,35 +1,36 @@
 from __future__ import annotations
 
-from ...safety.approval import ApprovalGate
+import shlex
+
 from ...safety.sandbox import Sandbox
 
-_gate = ApprovalGate()
+# Scope and approval are enforced by the Executor (this tool is registered as
+# `unscoped`, so it needs scope mode 'full' and explicit operator approval).
 _sandbox: Sandbox | None = None
 
 
-def configure(approval: ApprovalGate, sandbox: Sandbox) -> None:
-    global _gate, _sandbox
-    _gate, _sandbox = approval, sandbox
+def configure(sandbox: Sandbox) -> None:
+    global _sandbox
+    _sandbox = sandbox
 
 
 async def run_shell(args: dict) -> dict:
-    cmd = args["command"]
-    if isinstance(cmd, str):
-        cmd = cmd.split()
-    if _gate.requires_approval({"shell"}, "active") and not _gate.confirm(
-            f"shell: {cmd}"):
-        return {"error": "operator denied shell execution"}
     if _sandbox is None:
         return {"error": "shell tool not configured (missing sandbox)"}
-    r = await _sandbox.run(cmd)
+    cmd = args["command"]
+    argv = shlex.split(cmd) if isinstance(cmd, str) else [str(c) for c in cmd]
+    if not argv:
+        return {"error": "empty command"}
+    r = await _sandbox.run(argv)
     return {"returncode": r.returncode, "timed_out": r.timed_out,
-            "stdout": r.stdout, "stderr": r.stderr}
+            "sandbox": r.sandbox, "stdout": r.stdout, "stderr": r.stderr}
 
 
 TOOL = {
     "name": "run_shell",
-    "description": "Execute a shell command inside the configured sandbox. "
-                   "Destructive host commands are rejected.",
+    "description": "Execute a single command (no shell pipes/redirection) inside "
+                   "the configured sandbox. Requires scope mode 'full' and operator "
+                   "approval for every call. Prefer a dedicated tool when one exists.",
     "parameters": {"type": "object",
                    "properties": {"command": {"type": "string"}},
                    "required": ["command"]},

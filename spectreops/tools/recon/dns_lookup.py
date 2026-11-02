@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import dns.resolver
+import dns.asyncresolver
 
 TYPES = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
 
@@ -10,7 +10,7 @@ async def dns_lookup(args: dict) -> dict:
     out: dict[str, list[str]] = {}
     for rtype in TYPES:
         try:
-            answers = dns.resolver.resolve(domain, rtype)
+            answers = await dns.asyncresolver.resolve(domain, rtype)
             out[rtype] = sorted(r.to_text() for r in answers)
         except Exception:  # noqa: BLE001 — record as empty per type
             out[rtype] = []

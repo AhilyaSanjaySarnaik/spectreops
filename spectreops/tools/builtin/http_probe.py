@@ -1,7 +1,7 @@
 # spectreops/tools/builtin/http_probe.py
 from __future__ import annotations
 
-from ..tools.base import http_request
+from ..base import http_request
 
 
 async def http_probe(args: dict) -> dict:

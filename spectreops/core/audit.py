@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -35,13 +36,28 @@ class AuditLog:
         record = {"body": body, "prev": self._prev_hash, "hash": digest}
         with self.path.open("a") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
         self._prev_hash = digest
         return digest
 
     def verify(self) -> bool:
+        """True if every record chains to the previous one.
+
+        Note: a hash chain detects edits, insertions and deletions in the middle,
+        but not truncation of the newest records — anchor the latest hash
+        elsewhere (or sign it) if that matters for your engagement.
+        """
+        if not self.path.exists():
+            return True
         prev = "0" * 64
         for line in self.path.read_text().splitlines():
-            rec = json.loads(line)
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                return False
+            if not isinstance(rec, dict) or "body" not in rec:
+                return False
             recomputed = hashlib.sha256(
                 (prev + json.dumps(rec["body"], sort_keys=True, default=str)).encode()
             ).hexdigest()

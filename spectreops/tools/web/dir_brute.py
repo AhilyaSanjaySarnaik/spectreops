@@ -4,6 +4,8 @@ import asyncio
 
 import httpx
 
+from ...core.rate_limit import current_limiter
+
 DEFAULT_WORDS = ["admin", "login", "dashboard", "api", "backup", ".git",
                  "robots.txt", ".env", "wp-admin", "config", "test", "docs"]
 
@@ -12,13 +14,13 @@ async def dir_brute(args: dict) -> dict:
     base = args["base_url"].rstrip("/")
     words: list[str] = args.get("words") or DEFAULT_WORDS
     codes = set(args.get("interesting_codes", [200, 301, 302, 401, 403]))
-    sem = asyncio.Semaphore(10)
+    limiter = current_limiter()      # engagement rate + concurrency ceiling
     hits: list[dict] = []
     async with httpx.AsyncClient(verify=False, timeout=15,
                                  follow_redirects=False) as client:
         async def probe(path: str) -> None:
             try:
-                async with sem:
+                async with limiter.slot():
                     r = await client.get(f"{base}/{path}")
                 if r.status_code in codes:
                     hits.append({"path": f"/{path}", "status": r.status_code,

@@ -18,25 +18,41 @@ _PATTERNS = [
 ]
 
 
+_cache: tuple[Path, float, dict[str, str]] | None = None
+
+
 def load_secrets() -> dict[str, str]:
+    """Load stored secrets, re-reading the file only when it changes."""
+    global _cache
     if not _SECRET_FILE.exists():
         return {}
-    return json.loads(_SECRET_FILE.read_text())
+    mtime = _SECRET_FILE.stat().st_mtime
+    if _cache and _cache[0] == _SECRET_FILE and _cache[1] == mtime:
+        return _cache[2]
+    data = json.loads(_SECRET_FILE.read_text())
+    _cache = (_SECRET_FILE, mtime, data)
+    return data
 
 
 def store_secret(name: str, value: str) -> Path:
     _SECRET_FILE.parent.mkdir(parents=True, exist_ok=True)
     data = load_secrets()
     data[name] = value
-    _SECRET_FILE.write_text(json.dumps(data, indent=2))
-    _SECRET_FILE.chmod(stat.S_IRUSR | stat.S_IWUSR)   # 0600, owner-only
+    # create with 0600 up front so the secret is never briefly world-readable
+    fd = os.open(_SECRET_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                 stat.S_IRUSR | stat.S_IWUSR)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(json.dumps(data, indent=2))
+    _SECRET_FILE.chmod(stat.S_IRUSR | stat.S_IWUSR)
     return _SECRET_FILE
 
 
 def redact(text: str, extra_values: dict[str, str] | None = None) -> str:
     """Redact known secret values and common secret patterns from output."""
-    for value in list((extra_values or {}).values()) + list(load_secrets().values()):
-        if value:
+    values = list((extra_values or {}).values()) + list(load_secrets().values())
+    # longest first so a secret that contains another is fully replaced
+    for value in sorted(values, key=len, reverse=True):
+        if value and len(value) >= 4:
             text = text.replace(value, "[REDACTED]")
     for pat in _PATTERNS:
         text = pat.sub("[REDACTED]", text)

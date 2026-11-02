@@ -15,7 +15,7 @@ class Policy:
     offline: bool = True
 
     @classmethod
-    def from_config(cls, scope_cfg, runtime_cfg) -> "Policy":
+    def from_config(cls, scope_cfg, runtime_cfg) -> Policy:
         return cls(mode=scope_cfg.mode, targets=list(scope_cfg.targets),
                    exclusions=list(scope_cfg.exclusions),
                    rate_limit=scope_cfg.rate_limit, concurrency=scope_cfg.concurrency,

@@ -1,5 +1,6 @@
 # tests/unit/test_scope.py
 import pytest
+
 from spectreops.scope.policy import Policy
 from spectreops.scope.validator import ScopeValidator, ScopeViolation
 

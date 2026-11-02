@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 
 from .findings import as_dicts, dedup_and_sort
 
@@ -11,12 +12,23 @@ def export_json(findings, path: str) -> None:
         json.dump(as_dicts(findings), fh, indent=2)
 
 
+# SARIF 2.1.0 only allows error|warning|note|none for `level`
+SARIF_LEVEL = {"critical": "error", "high": "error", "medium": "warning",
+               "low": "note", "info": "note"}
+SARIF_SCORE = {"critical": "9.5", "high": "8.0", "medium": "5.5", "low": "3.0",
+               "info": "0.0"}
+
+
 def export_sarif(findings, path: str) -> None:
-    rules, results = [], []
+    rules, results, seen_rules = [], [], set()
     for f in dedup_and_sort(findings):
-        rid = f.title.lower().replace(" ", "_")[:60]
-        rules.append({"id": rid, "shortDescription": {"text": f.title}})
-        results.append({"ruleId": rid, "level": f.severity,
+        rid = re.sub(r"[^a-z0-9_]+", "_", f.title.lower()).strip("_")[:60] or "finding"
+        if rid not in seen_rules:
+            seen_rules.add(rid)
+            rules.append({"id": rid, "shortDescription": {"text": f.title},
+                          "properties": {"security-severity":
+                                         SARIF_SCORE.get(f.severity, "0.0")}})
+        results.append({"ruleId": rid, "level": SARIF_LEVEL.get(f.severity, "note"),
                         "message": {"text": f"{f.title} on {f.target} "
                                              f"({f.confidence})"},
                         "locations": [{"physicalLocation": {
@@ -45,10 +57,11 @@ table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #999;padding
 def export_html(findings, path: str) -> None:
     rows = []
     for f in dedup_and_sort(findings):
+        sev = html.escape(f.severity)
         rows.append(
             f"<h2>{html.escape(f.title)}</h2>"
-            f"<table><tr><th>Severity</th><td class='{f.severity}'>{f.severity} "
-            f"(confidence: {f.confidence})</td></tr>"
+            f"<table><tr><th>Severity</th><td class='{sev}'>{sev} "
+            f"(confidence: {html.escape(f.confidence)})</td></tr>"
             f"<tr><th>Target</th><td><code>{html.escape(f.target)}</code></td></tr>"
             f"<tr><th>Reproduction</th><td><pre>{html.escape(f.reproduction)}</pre>"
             f"</td></tr>"
