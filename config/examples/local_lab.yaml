@@ -1,0 +1,18 @@
+llm:
+  backend: ollama
+  base_url: http://127.0.0.1:11434
+  model: qwen2.5-coder:7b
+  small_model: qwen2.5:3b
+agent:
+  autonomy: supervised
+  max_tool_timeout: 300
+scope:
+  mode: full
+  targets: ["http://127.0.0.1:8080", "http://127.0.0.1:3000"]
+  exclusions: []
+  rate_limit: 20
+  concurrency: 5
+runtime:
+  data_dir: ~/.spectreops
+  sandbox: auto
+  offline: true
