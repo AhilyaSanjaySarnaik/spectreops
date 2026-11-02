@@ -43,28 +43,33 @@ _ALL = [
      {"target_keys": ("domain",), "third_party_egress": True, "host_subprocess": True}),
     (ARCHIVE, archive_urls, "safe", {"recon", "third_party"},
      {"target_keys": ("domain",), "third_party_egress": True, "host_subprocess": True}),
-    (NMAP, nmap_scan, "active", {"recon", "network"}, {"target_keys": ("target",), "host_subprocess": True}),
+    (NMAP, nmap_scan, "active", {"recon", "network"},
+     {"target_keys": ("target",), "host_subprocess": True}),
     (PROBE, http_probe, "active", {"recon", "web"}, {"target_keys": ("url",)}),
     (FINGERPRINT, fingerprint, "active", {"recon", "web"}, {"target_keys": ("url",)}),
     (CRAWL, crawl, "active", {"recon", "web"}, {"target_keys": ("url",), "host_subprocess": True}),
-    (PARAMS, param_discover, "active", {"recon", "web"}, {"target_keys": ("url",), "host_subprocess": True}),
+    (PARAMS, param_discover, "active", {"recon", "web"},
+     {"target_keys": ("url",), "host_subprocess": True}),
     # --- API ---
     (OPENAPI, openapi_endpoints, "safe", {"api", "recon"}, {"target_keys": ("url",)}),
     (GRAPHQL, graphql_introspect, "active", {"api", "recon"}, {"target_keys": ("url",)}),
     # --- content/param fuzzing ---
     (DIRB, dir_brute, "active", {"web", "content_discovery"},
      {"target_keys": ("base_url",)}),
-    (FFUF, ffuf_fuzz, "active", {"web", "content_discovery"}, {"target_keys": ("url",), "host_subprocess": True}),
+    (FFUF, ffuf_fuzz, "active", {"web", "content_discovery"},
+     {"target_keys": ("url",), "host_subprocess": True}),
     # --- manual request / replay ---
     (SEND_TOOL, http_send, "active", {"web", "manual"}, {"target_keys": ("url",)}),
     (REPLAY_TOOL, http_replay, "active", {"web", "manual", "authz"},
      {"target_keys": ("url",)}),
     # --- vuln scanning ---
-    (NUCLEI, nuclei_scan, "active", {"vuln", "web"}, {"target_keys": ("url",), "host_subprocess": True}),
+    (NUCLEI, nuclei_scan, "active", {"vuln", "web"},
+     {"target_keys": ("url",), "host_subprocess": True}),
     (TRIVY, trivy_scan, "safe", {"vuln", "local"},
      {"target_keys": (), "network": False, "host_subprocess": True}),
     # --- active exploitation (phase-gated + approval) ---
-    (SQLMAP, sqlmap_test, "exploit", {"vuln", "injection"}, {"target_keys": ("url",), "host_subprocess": True}),
+    (SQLMAP, sqlmap_test, "exploit", {"vuln", "injection"},
+     {"target_keys": ("url",), "host_subprocess": True}),
     # --- shell (full mode + approval every call) ---
     (SHELL, run_shell, "active", {"shell"}, {"target_keys": (), "unscoped": True}),
 ]
