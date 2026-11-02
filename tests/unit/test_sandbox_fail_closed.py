@@ -7,12 +7,18 @@ from spectreops.safety import sandbox
 
 
 def test_auto_prefers_docker(monkeypatch):
-    monkeypatch.setattr(sandbox.shutil, "which", lambda name: "/usr/bin/docker" if name == "docker" else None)
+    monkeypatch.setattr(
+        sandbox.shutil, "which",
+        lambda name: "/usr/bin/docker" if name == "docker" else None,
+    )
     assert sandbox.Sandbox(mode="auto").mode == "docker"
 
 
 def test_auto_falls_back_to_bwrap(monkeypatch):
-    monkeypatch.setattr(sandbox.shutil, "which", lambda name: "/usr/bin/bwrap" if name == "bwrap" else None)
+    monkeypatch.setattr(
+        sandbox.shutil, "which",
+        lambda name: "/usr/bin/bwrap" if name == "bwrap" else None,
+    )
     assert sandbox.Sandbox(mode="auto").mode == "bwrap"
 
 
