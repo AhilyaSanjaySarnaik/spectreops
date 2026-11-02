@@ -40,7 +40,7 @@ async def verify_offline_container(container_id: str) -> str:
     if (not state.get("Running")
             or config.get("NetworkMode") != "none"
             or config.get("Privileged")
-            or networks):
+            or (set(networks) - {"none"})):
         raise LabIsolationError("lab target must be running, unprivileged, network=none")
     if not _CONTAINER_ID.fullmatch(full_id):
         raise LabIsolationError("Docker returned an invalid container ID")
