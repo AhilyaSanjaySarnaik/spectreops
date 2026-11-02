@@ -9,13 +9,14 @@ import os
 import shutil
 import subprocess
 import time
+from xml.etree import ElementTree
 
 import pytest
 
-from xml.etree import ElementTree
-
 from spectreops.safety.lab_network import (
-    LabIsolationError, nmap_lab, verify_offline_container,
+    LabIsolationError,
+    nmap_lab,
+    verify_offline_container,
 )
 
 
