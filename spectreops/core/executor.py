@@ -46,7 +46,8 @@ class Executor:
                  audit: AuditLog, max_timeout: int = 600, max_retries: int = 2,
                  approval: ApprovalGate | None = None, autonomy: str = "supervised",
                  redact_secrets: bool = True, limiter: RateLimiter | None = None,
-                 plan=None, auth: AuthStore | None = None):
+                 plan=None, auth: AuthStore | None = None,
+                 allow_host_scanners: bool = False):
         self.registry = registry
         self.validator = validator
         self.audit = audit
@@ -65,15 +66,26 @@ class Executor:
             self.profile.cap_rate(getattr(pol, "rate_limit", 10.0)),
             self.profile.cap_concurrency(getattr(pol, "concurrency", 5)))
         self.auth = auth or AuthStore.empty()
+        self.allow_host_scanners = allow_host_scanners
 
     # ------------------------------------------------------------------ checks
     def _check_scope(self, tool: Tool, args: dict) -> None:
         if not tool.network:
+            if tool.host_subprocess and not self.allow_host_scanners:
+                raise ScopeViolation(
+                    f"{tool.name} runs on the host: set runtime.allow_host_scanners "
+                    "explicitly to accept unisolated execution"
+                )
             return
         self.validator.check_action(tool.danger)
         if tool.third_party_egress and self.validator.policy.offline:
             raise ScopeViolation(f"'{tool.name}' contacts third-party services; "
                                  "disabled while runtime.offline is true")
+        if tool.host_subprocess and not self.allow_host_scanners:
+            raise ScopeViolation(
+                f"{tool.name} runs on the host: set runtime.allow_host_scanners "
+                "explicitly to accept unisolated execution"
+            )
         if tool.unscoped:
             if self.validator.policy.mode != "full":
                 raise ScopeViolation(
@@ -102,7 +114,8 @@ class Executor:
                 f"phase (current: '{self.plan.current_phase()}')")
 
     def _needs_approval(self, tool: Tool) -> bool:
-        return tool.unscoped or self.approval.requires_approval(tool.tags, tool.danger)
+        return (tool.unscoped or tool.host_subprocess
+                or self.approval.requires_approval(tool.tags, tool.danger))
 
     # --------------------------------------------------------------- sanitise
     def _sanitize(self, result: Any) -> Any:
